@@ -62,3 +62,33 @@ def count_tokens_estimate(text: str) -> int:
         Estimated token count (roughly 4 chars per token)
     """
     return len(text) // 4
+
+
+def count_code_lines(file_path: str | Path) -> int:
+    """
+    Count non-empty, non-comment lines in a Python file.
+    
+    Args:
+        file_path: Path to the Python file
+        
+    Returns:
+        Number of non-empty, non-comment lines
+        
+    Raises:
+        FileNotFoundError: If the file doesn't exist
+        OSError: If there's an error reading the file
+    """
+    file_path = Path(file_path)
+    
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
+    count = 0
+    with open(file_path, 'r', encoding='utf-8') as file:
+        for line in file:
+            stripped = line.strip()
+            # Skip empty lines and comment lines
+            if stripped and not stripped.startswith('#'):
+                count += 1
+    
+    return count

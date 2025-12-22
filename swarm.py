@@ -3,7 +3,7 @@
 
 import os
 import sys
-import uuid
+import time
 
 # Add current directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -11,36 +11,25 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import click
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.markdown import Markdown
 from rich.table import Table
-from rich.live import Live
-from rich.layout import Layout
 from rich.text import Text
+from rich.live import Live
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from config import get_settings
 from agents import GruntAgent, Orchestrator
+from agents.base import StreamEvent
 from router import ModelRouter
 from history import ConversationHistory, get_history
-from logging_config import setup_logging, get_metrics_collector, TaskMetrics
+from logging_config import setup_logging, get_metrics_collector
 from context import ContextBuilder
-
-
-console = Console()
-
-
-def format_cost(cost: float) -> str:
-    """Format cost in dollars."""
-    if cost < 0.01:
-        return f"${cost:.4f}"
-    return f"${cost:.2f}"
-
-
-def format_tokens(tokens: int) -> str:
-    """Format token count."""
-    if tokens > 1000:
-        return f"{tokens / 1000:.1f}K"
-    return str(tokens)
+from memory import get_memory_store
+from ui import (
+    console, print_banner, print_result, print_subtasks,
+    format_cost, format_tokens, format_duration,
+    LiveDashboard, StreamingDisplay, COLORS
+)
 
 
 @click.group(invoke_without_command=True)
@@ -51,6 +40,7 @@ def format_tokens(tokens: int) -> str:
 @click.option("--single", "-s", is_flag=True, help="Single grunt mode (no orchestration)")
 @click.option("--no-qa", is_flag=True, help="Skip QA validation")
 @click.option("--no-parallel", is_flag=True, help="Disable parallel execution")
+@click.option("--stream", is_flag=True, help="Stream agent output in real-time")
 @click.option("--interactive", "-i", is_flag=True, help="Interactive mode")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.option("--working-dir", "-w", type=click.Path(exists=True), help="Working directory")
@@ -65,6 +55,7 @@ def main(
     single: bool,
     no_qa: bool,
     no_parallel: bool,
+    stream: bool,
     interactive: bool,
     verbose: bool,
     working_dir: str | None,
@@ -78,20 +69,20 @@ def main(
         swarm "create a python script that downloads a webpage"
         swarm "fix the bug in src/parser.py" --single
         swarm "refactor the authentication module" --prefer anthropic
+        swarm --stream "explain main.py"
         swarm -i  # Interactive mode
 
     \b
     Commands:
         swarm history    List previous sessions
         swarm stats      Show usage statistics
+        swarm memory     Show memory stats
     """
-    # If a subcommand is invoked, don't run main logic
     if ctx.invoked_subcommand is not None:
         return
 
     settings = get_settings()
 
-    # Set up logging
     if verbose:
         setup_logging(level="DEBUG")
     else:
@@ -111,7 +102,6 @@ def main(
         else:
             console.print(f"[yellow]Warning: Could not load session {session}[/yellow]")
 
-    # Resolve working directory
     working_dir = working_dir or os.getcwd()
 
     # Interactive mode
@@ -123,6 +113,7 @@ def main(
             single=single,
             no_qa=no_qa,
             no_parallel=no_parallel,
+            stream=stream,
             verbose=verbose,
             working_dir=working_dir,
             history=history,
@@ -138,6 +129,7 @@ def main(
         single=single,
         no_qa=no_qa,
         no_parallel=no_parallel,
+        stream=stream,
         verbose=verbose,
         working_dir=working_dir,
         history=history,
@@ -151,26 +143,22 @@ def run_interactive(
     single: bool,
     no_qa: bool,
     no_parallel: bool,
+    stream: bool,
     verbose: bool,
     working_dir: str,
     history: ConversationHistory,
 ):
     """Run in interactive mode."""
-    console.print(Panel.fit(
-        "[bold blue]Swarm[/bold blue] - Multi-Agent Task Executor\n"
-        f"Session: {history.session_id}\n"
-        "Type your task, or 'quit' to exit.\n"
-        "Commands: /history, /stats, /clear",
-        border_style="blue"
-    ))
+    print_banner()
+    console.print(f"[dim]Session: {history.session_id} | Working dir: {working_dir}[/dim]")
+    console.print("[dim]Type your task, or 'quit' to exit. Commands: /history, /stats, /memory, /clear[/dim]\n")
 
     while True:
         try:
-            task = console.input("\n[bold green]swarm>[/bold green] ").strip()
+            task = console.input(f"[bold {COLORS['primary']}]swarm>[/bold {COLORS['primary']}] ").strip()
             if not task:
                 continue
 
-            # Handle commands
             if task.lower() in ("quit", "exit", "q"):
                 history.save()
                 console.print(f"[dim]Session saved: {history.session_id}[/dim]")
@@ -188,10 +176,12 @@ def run_interactive(
                 single=single,
                 no_qa=no_qa,
                 no_parallel=no_parallel,
+                stream=stream,
                 verbose=verbose,
                 working_dir=working_dir,
                 history=history,
             )
+            console.print()
 
         except KeyboardInterrupt:
             console.print("\n[dim]Interrupted. Type 'quit' to exit.[/dim]")
@@ -217,7 +207,7 @@ def handle_command(command: str, history: ConversationHistory):
         table.add_column("Cost", justify="right")
 
         for task in history.tasks[-10:]:
-            status = "[green]✓[/green]" if task.success else "[red]✗[/red]"
+            status = f"[{COLORS['success']}]✓[/{COLORS['success']}]" if task.success else f"[{COLORS['error']}]✗[/{COLORS['error']}]"
             table.add_row(
                 task.timestamp.strftime("%H:%M:%S"),
                 task.task[:50] + ("..." if len(task.task) > 50 else ""),
@@ -243,17 +233,47 @@ def handle_command(command: str, history: ConversationHistory):
             f"Tokens: {format_tokens(total_input)} in / {format_tokens(total_output)} out\n"
             f"Total cost: {format_cost(total_cost)}",
             title="Session Stats",
-            border_style="blue",
+            border_style=COLORS["primary"],
         ))
+
+    elif cmd == "/memory":
+        memory = get_memory_store()
+        stats = memory.get_stats()
+        model_stats = memory.get_model_stats()
+
+        console.print(Panel(
+            f"Total memories: {stats['total_memories']}\n"
+            f"Success rate: {stats['success_rate']:.0%}\n"
+            f"Total cost: {format_cost(stats['total_cost_usd'])}\n"
+            f"Skills learned: {stats['total_skills']}",
+            title="Memory Stats",
+            border_style=COLORS["secondary"],
+        ))
+
+        if model_stats:
+            table = Table(title="Model Performance")
+            table.add_column("Model")
+            table.add_column("Tasks", justify="right")
+            table.add_column("Success", justify="right")
+            table.add_column("Avg Tokens", justify="right")
+
+            for model, data in model_stats.items():
+                table.add_row(
+                    model,
+                    str(data["total_tasks"]),
+                    f"{data['success_rate']:.0%}",
+                    format_tokens(int(data["avg_tokens"] or 0)),
+                )
+            console.print(table)
 
     elif cmd == "/clear":
         console.clear()
-        console.print("[dim]Screen cleared.[/dim]")
 
     elif cmd == "/help":
         console.print(Panel(
             "/history - Show task history\n"
-            "/stats   - Show usage statistics\n"
+            "/stats   - Show session statistics\n"
+            "/memory  - Show memory & model stats\n"
             "/clear   - Clear screen\n"
             "/help    - Show this help\n"
             "quit     - Exit and save session",
@@ -263,7 +283,6 @@ def handle_command(command: str, history: ConversationHistory):
 
     else:
         console.print(f"[yellow]Unknown command: {command}[/yellow]")
-        console.print("[dim]Type /help for available commands.[/dim]")
 
 
 def run_task(
@@ -274,6 +293,7 @@ def run_task(
     single: bool,
     no_qa: bool,
     no_parallel: bool,
+    stream: bool,
     verbose: bool,
     working_dir: str,
     history: ConversationHistory,
@@ -282,6 +302,8 @@ def run_task(
     settings = get_settings()
     metrics = get_metrics_collector()
     task_metrics = metrics.start_task(history.generate_task_id())
+    memory = get_memory_store()
+    start_time = time.time()
 
     # Determine model
     if cheap:
@@ -290,182 +312,269 @@ def run_task(
         router = ModelRouter(prefer_provider=prefer)
         model = router.select(task)
 
-    console.print(f"\n[dim]Model: {model} | Working dir: {working_dir}[/dim]")
+    console.print(f"\n[dim]Model: {model} | Dir: {working_dir}[/dim]")
 
-    # Add history context
+    # Get history context
     history_context = history.get_context_summary()
 
     if single:
         # Single grunt mode
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-            transient=True,
-        ) as progress:
-            progress.add_task("Executing task...", total=None)
+        result = run_single_grunt(
+            task=task,
+            model=model,
+            context=history_context,
+            working_dir=working_dir,
+            stream=stream,
+            skip_qa=no_qa,
+        )
 
-            grunt = GruntAgent(model=model, working_dir=working_dir)
-            result = grunt.run(task, context=history_context)
+        duration = time.time() - start_time
 
-        if result.success:
-            console.print(Panel(
-                Markdown(result.result),
-                title="[green]Task Completed[/green]",
-                border_style="green",
-            ))
+        if result["success"]:
+            print_result(True, result["message"], {
+                "tokens": result["input_tokens"] + result["output_tokens"],
+                "cost": result["cost"],
+                "duration": duration,
+            })
 
-            if result.files_modified:
-                console.print(f"\n[dim]Files modified: {', '.join(result.files_modified)}[/dim]")
-
+            if result.get("files_modified"):
+                console.print(f"[dim]Files: {', '.join(result['files_modified'])}[/dim]")
         else:
-            console.print(Panel(
-                result.error or "Unknown error",
-                title="[red]Task Failed[/red]",
-                border_style="red",
-            ))
+            print_result(False, result["error"] or "Unknown error", {
+                "tokens": result["input_tokens"] + result["output_tokens"],
+                "cost": result["cost"],
+                "duration": duration,
+            })
 
-        # Record metrics
-        cost = grunt.get_cost()
-        task_metrics.input_tokens = result.input_tokens
-        task_metrics.output_tokens = result.output_tokens
-        task_metrics.cost_usd = cost
-        task_metrics.complete()
+        # Track in memory
+        memory.track_model_performance(
+            model=model,
+            task_type="single",
+            success=result["success"],
+            tokens_used=result["input_tokens"] + result["output_tokens"],
+            cost_usd=result["cost"],
+            duration_ms=int(duration * 1000),
+        )
 
         # Save to history
         history.add_task(
             task=task,
-            result=result.result if result.success else (result.error or "Failed"),
-            success=result.success,
+            result=result["message"] if result["success"] else (result["error"] or "Failed"),
+            success=result["success"],
             model=model,
-            input_tokens=result.input_tokens,
-            output_tokens=result.output_tokens,
-            cost_usd=cost,
-            files_modified=result.files_modified,
+            input_tokens=result["input_tokens"],
+            output_tokens=result["output_tokens"],
+            cost_usd=result["cost"],
+            files_modified=result.get("files_modified", []),
         )
-
-        # Stats
-        console.print(f"\n[dim]Tokens: {format_tokens(result.input_tokens)} in / {format_tokens(result.output_tokens)} out | Cost: {format_cost(cost)} | Iterations: {result.iterations}[/dim]")
 
     else:
         # Orchestrated mode
+        result = run_orchestrated(
+            task=task,
+            model=model,
+            context=history_context,
+            working_dir=working_dir,
+            stream=stream,
+            skip_qa=no_qa,
+            parallel=not no_parallel,
+        )
+
+        duration = time.time() - start_time
+
+        if result["subtasks"]:
+            print_subtasks(result["subtasks"])
+
+        if result["success"]:
+            print_result(True, result["message"], {
+                "tokens": result["input_tokens"] + result["output_tokens"],
+                "cost": result["cost"],
+                "duration": duration,
+            })
+        else:
+            print_result(False, result["message"], {
+                "tokens": result["input_tokens"] + result["output_tokens"],
+                "cost": result["cost"],
+                "duration": duration,
+            })
+
+        # Track in memory
+        memory.track_model_performance(
+            model=model,
+            task_type="orchestrated",
+            success=result["success"],
+            tokens_used=result["input_tokens"] + result["output_tokens"],
+            cost_usd=result["cost"],
+            duration_ms=int(duration * 1000),
+        )
+
+        # Save to history
+        history.add_task(
+            task=task,
+            result=result["message"],
+            success=result["success"],
+            model=model,
+            input_tokens=result["input_tokens"],
+            output_tokens=result["output_tokens"],
+            cost_usd=result["cost"],
+            subtasks=[{
+                "id": st["id"],
+                "task": st["task"],
+                "status": st["status"],
+                "retries": st.get("retries", 0),
+            } for st in result.get("subtasks", [])],
+        )
+
+
+def run_single_grunt(
+    task: str,
+    model: str,
+    context: str,
+    working_dir: str,
+    stream: bool,
+    skip_qa: bool,
+) -> dict:
+    """Run a single grunt agent."""
+    grunt = GruntAgent(model=model, working_dir=working_dir)
+
+    if stream:
+        # Streaming mode with live display
+        display = StreamingDisplay(title=f"Grunt ({model})")
+
+        def handle_stream(event: StreamEvent):
+            display.handle_event(event)
+
+        grunt.on_stream = handle_stream
+
+        with display:
+            result = grunt.run(task, context)
+    else:
+        # Non-streaming with spinner
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
             console=console,
             transient=True,
         ) as progress:
-            main_task = progress.add_task("Decomposing task...", total=None)
+            progress.add_task("Executing...", total=None)
+            result = grunt.run(task, context)
 
-            orchestrator = Orchestrator(model=model, working_dir=working_dir)
+    return {
+        "success": result.success,
+        "message": result.result,
+        "error": result.error,
+        "input_tokens": result.input_tokens,
+        "output_tokens": result.output_tokens,
+        "cost": grunt.get_cost(),
+        "files_modified": result.files_modified,
+        "iterations": result.iterations,
+    }
 
-            # Set up progress callbacks
-            subtask_progress = {}
 
-            def on_subtask_start(subtask):
-                subtask_progress[subtask.id] = progress.add_task(
-                    f"  [{subtask.id}] {subtask.task[:40]}...",
-                    total=None,
-                )
+def run_orchestrated(
+    task: str,
+    model: str,
+    context: str,
+    working_dir: str,
+    stream: bool,
+    skip_qa: bool,
+    parallel: bool,
+) -> dict:
+    """Run orchestrated multi-agent execution."""
+    orchestrator = Orchestrator(model=model, working_dir=working_dir)
 
-            def on_subtask_complete(subtask):
-                if subtask.id in subtask_progress:
-                    progress.update(subtask_progress[subtask.id], completed=True)
+    # Set up logging callback
+    log_messages = []
+
+    def on_log(msg: str):
+        log_messages.append(msg)
+        if not stream:
+            console.print(f"[dim]{msg}[/dim]")
+
+    orchestrator.on_log = on_log
+
+    if stream:
+        # With streaming/live dashboard
+        dashboard = LiveDashboard(task=task, model=model)
+
+        def on_subtask_start(st):
+            dashboard.add_grunt(st.id, st.task)
+            dashboard.update_grunt(st.id, status="running")
+
+        def on_subtask_complete(st):
+            dashboard.update_grunt(
+                st.id,
+                status="completed" if st.status == "completed" else "failed",
+                result=st.result.result[:100] if st.result else "",
+            )
+
+        def on_subtask_update(st):
+            dashboard.update_grunt(st.id, retries=st.retries)
+
+        orchestrator.on_subtask_start = on_subtask_start
+        orchestrator.on_subtask_complete = on_subtask_complete
+        orchestrator.on_subtask_update = on_subtask_update
+        orchestrator.on_log = dashboard.log
+
+        with dashboard:
+            result = orchestrator.run(
+                task,
+                context=context,
+                skip_qa=skip_qa,
+                parallel=parallel,
+                stream=True,
+            )
+    else:
+        # Non-streaming with progress bar
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            main_task = progress.add_task("Analyzing task...", total=None)
+
+            def on_subtask_start(st):
+                progress.update(main_task, description=f"Running subtask {st.id}...")
+
+            def on_subtask_complete(st):
+                status = "✓" if st.status == "completed" else "✗"
+                progress.update(main_task, description=f"Subtask {st.id} {status}")
 
             orchestrator.on_subtask_start = on_subtask_start
             orchestrator.on_subtask_complete = on_subtask_complete
 
             result = orchestrator.run(
                 task,
-                context=history_context,
-                skip_qa=no_qa,
-                parallel=not no_parallel,
+                context=context,
+                skip_qa=skip_qa,
+                parallel=parallel,
             )
 
-            progress.update(main_task, description="Complete", completed=True)
+    # Calculate cost
+    costs = orchestrator.settings.cost_per_million.get(model, {"input": 0, "output": 0})
+    total_cost = (
+        (result.total_input_tokens / 1_000_000) * costs["input"] +
+        (result.total_output_tokens / 1_000_000) * costs["output"]
+    )
 
-        # Show subtask results
-        if result.subtasks:
-            table = Table(title="Subtasks", show_header=True)
-            table.add_column("#", style="dim", width=3)
-            table.add_column("Task", max_width=50)
-            table.add_column("Status", width=10)
-            table.add_column("Retries", justify="right", width=7)
-
-            for st in result.subtasks:
-                status_style = {
-                    "completed": "[green]✓ done[/green]",
-                    "failed": "[red]✗ failed[/red]",
-                    "pending": "[yellow]○ pending[/yellow]",
-                    "running": "[blue]◉ running[/blue]",
-                }.get(st.status, st.status)
-
-                table.add_row(
-                    str(st.id),
-                    st.task[:50] + ("..." if len(st.task) > 50 else ""),
-                    status_style,
-                    str(st.retries) if st.retries > 0 else "-",
-                )
-
-            console.print(table)
-
-        # Final result
-        if result.success:
-            console.print(Panel(
-                Markdown(result.message),
-                title="[green]All Tasks Completed[/green]",
-                border_style="green",
-            ))
-        else:
-            console.print(Panel(
-                result.message,
-                title="[red]Task Failed[/red]",
-                border_style="red",
-            ))
-
-            # Show failed subtask details
-            for st in result.subtasks:
-                if st.status == "failed" and st.result:
-                    console.print(f"\n[red]Subtask {st.id} failed:[/red] {st.result.error or 'Unknown error'}")
-
-        # Calculate cost
-        costs = settings.cost_per_million.get(model, {"input": 0, "output": 0})
-        total_cost = (
-            (result.total_input_tokens / 1_000_000) * costs["input"] +
-            (result.total_output_tokens / 1_000_000) * costs["output"]
-        )
-
-        # Record metrics
-        task_metrics.input_tokens = result.total_input_tokens
-        task_metrics.output_tokens = result.total_output_tokens
-        task_metrics.cost_usd = total_cost
-        task_metrics.subtasks_total = len(result.subtasks)
-        task_metrics.subtasks_completed = sum(1 for st in result.subtasks if st.status == "completed")
-        task_metrics.subtasks_failed = sum(1 for st in result.subtasks if st.status == "failed")
-        task_metrics.retries = sum(st.retries for st in result.subtasks)
-        task_metrics.complete()
-
-        # Save to history
-        history.add_task(
-            task=task,
-            result=result.message,
-            success=result.success,
-            model=model,
-            input_tokens=result.total_input_tokens,
-            output_tokens=result.total_output_tokens,
-            cost_usd=total_cost,
-            subtasks=[{
+    return {
+        "success": result.success,
+        "message": result.message,
+        "strategy": result.strategy,
+        "input_tokens": result.total_input_tokens,
+        "output_tokens": result.total_output_tokens,
+        "cost": total_cost,
+        "subtasks": [
+            {
                 "id": st.id,
                 "task": st.task,
                 "status": st.status,
                 "retries": st.retries,
-            } for st in result.subtasks],
-        )
-
-        # Stats
-        console.print(f"\n[dim]Tokens: {format_tokens(result.total_input_tokens)} in / {format_tokens(result.total_output_tokens)} out | Cost: {format_cost(total_cost)} | Subtasks: {len(result.subtasks)}[/dim]")
+            }
+            for st in result.subtasks
+        ],
+    }
 
 
 @main.command()
@@ -511,10 +620,47 @@ def stats():
         f"Total tokens: {format_tokens(totals['total_input_tokens'])} in / {format_tokens(totals['total_output_tokens'])} out\n"
         f"Total cost: {format_cost(totals['total_cost_usd'])}\n"
         f"Total retries: {totals['total_retries']}\n"
-        f"Total time: {totals['total_duration_seconds']:.1f}s",
+        f"Total time: {format_duration(totals['total_duration_seconds'])}",
         title="Usage Statistics",
-        border_style="blue",
+        border_style=COLORS["primary"],
     ))
+
+
+@main.command()
+def memory():
+    """Show memory statistics."""
+    mem = get_memory_store()
+    stats = mem.get_stats()
+    model_stats = mem.get_model_stats()
+
+    console.print(Panel(
+        f"Total memories: {stats['total_memories']}\n"
+        f"Successful: {stats['successful_memories']}\n"
+        f"Success rate: {stats['success_rate']:.0%}\n"
+        f"Total cost tracked: {format_cost(stats['total_cost_usd'])}\n"
+        f"Skills learned: {stats['total_skills']}",
+        title="Memory System",
+        border_style=COLORS["secondary"],
+    ))
+
+    if model_stats:
+        console.print()
+        table = Table(title="Model Performance Tracking")
+        table.add_column("Model")
+        table.add_column("Tasks", justify="right")
+        table.add_column("Success Rate", justify="right")
+        table.add_column("Avg Tokens", justify="right")
+        table.add_column("Total Cost", justify="right")
+
+        for model_name, data in sorted(model_stats.items()):
+            table.add_row(
+                model_name,
+                str(data["total_tasks"]),
+                f"{data['success_rate']:.0%}",
+                format_tokens(int(data["avg_tokens"] or 0)),
+                format_cost(data["total_cost"] or 0),
+            )
+        console.print(table)
 
 
 if __name__ == "__main__":
