@@ -101,6 +101,13 @@ Most AI agent frameworks execute tasks. Swarm **learns from every execution**:
 - **Parallel Execution**: Independent sibling goals run concurrently
 - **Result Propagation**: Child results aggregate up to parent goals
 
+### Background Learning (`background.py`)
+- **Autonomous Daemon**: Runs in background to continuously learn
+- **Skill Practice**: Identifies and practices weak skills
+- **Knowledge Consolidation**: Merges and compresses learned patterns
+- **Self-Improvement**: Periodically improves Swarm's own code
+- **Exploration**: Discovers new patterns from codebases
+
 ## Installation
 
 ```bash
@@ -140,6 +147,9 @@ python3 train.py self-improve --iterations 10
 
 # Autonomous self-directed learning
 python3 train.py autonomous --duration 60
+
+# Background learning daemon (continuous improvement)
+python3 train.py daemon --duration 60
 
 # Interactive training mode
 python3 train.py interactive
@@ -197,7 +207,8 @@ All learning is stored in SQLite databases:
 ├── embeddings_cache.db # Cached embeddings (saves API calls)
 ├── rollback.db        # File snapshots for rollback
 ├── negotiation.db     # Multi-agent debate history
-└── goals.db           # Hierarchical goal trees
+├── goals.db           # Hierarchical goal trees
+└── background.db      # Background learning sessions
 ```
 
 Learning persists across sessions and accumulates over time.
@@ -255,9 +266,11 @@ Over time, prompts naturally evolve to be more effective.
 - [x] Rollback planning (file snapshots, safe restoration, git integration)
 - [x] Multi-agent negotiation (critique, consensus, risk-based activation)
 - [x] Hierarchical goal decomposition (recursive planning, tree execution)
+- [x] Continuous background learning (daemon mode, skill practice, consolidation)
 
 ### Research Directions
-- [ ] Continuous background learning
+- [ ] Multi-modal reasoning (code + diagrams + docs)
+- [ ] Federated learning across Swarm instances
 
 ## License
 

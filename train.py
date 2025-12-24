@@ -21,6 +21,7 @@ from evolution import get_evolution
 from memory import get_memory_store
 from knowledge import get_knowledge_store
 from goals import get_hierarchical_planner
+from background import get_background_learner, LearningMode
 
 
 # Benchmark tasks for training
@@ -75,12 +76,14 @@ def print_stats():
     memory = get_memory_store()
     knowledge = get_knowledge_store()
     hierarchical = get_hierarchical_planner()
+    background = get_background_learner()
 
     brain_stats = brain.get_stats()
     evo_stats = evolution.get_stats()
     mem_stats = memory.get_stats()
     know_stats = knowledge.get_stats()
     hier_stats = hierarchical.get_stats()
+    bg_stats = background.get_stats()
 
     print("\n" + "="*60)
     print(" SWARM LEARNING STATS")
@@ -112,6 +115,14 @@ def print_stats():
     print(f"   Total plans: {hier_stats['total_plans']}")
     print(f"   Completed: {hier_stats['completed_plans']} ({hier_stats['success_rate']:.0%} success rate)")
     print(f"   Avg goals per plan: {hier_stats['avg_goals_per_plan']:.1f}")
+
+    print(f"\n Background Learning:")
+    print(f"   Sessions: {bg_stats['total_sessions']}")
+    print(f"   Tasks: {bg_stats['total_tasks_completed']} completed, {bg_stats['total_tasks_failed']} failed")
+    print(f"   Skills tracked: {bg_stats['skills_tracked']} ({bg_stats['avg_skill_success_rate']:.0%} avg success)")
+    print(f"   Insights extracted: {bg_stats['insights_extracted']}")
+    status = "RUNNING" if bg_stats['is_running'] else "stopped"
+    print(f"   Status: {status}")
     print("="*60 + "\n")
 
 
@@ -355,13 +366,44 @@ Choose ONE specific, actionable task and execute it. Be precise."""
     print_stats()
 
 
+def run_daemon(duration_minutes: int = 60):
+    """Run background learning daemon."""
+    print(f"BACKGROUND LEARNING DAEMON")
+    print("="*60)
+    print(f"Duration: {duration_minutes} minutes (0 for indefinite)")
+    print("Press Ctrl+C to stop.\n")
+
+    learner = get_background_learner(working_dir=str(Path.cwd()))
+
+    # Set up callbacks
+    learner.on_task_start = lambda t: print(f"   [{t.mode.value}] {t.description[:50]}...")
+    learner.on_task_complete = lambda t, s: print(f"   {'SUCCESS' if s else 'FAILED'}")
+    learner.on_insight = lambda i: print(f"   Insight: {i}")
+    learner.on_consolidation = lambda c: print(f"   Consolidated {c} items")
+
+    try:
+        # Start daemon
+        learner.start(duration_minutes=duration_minutes)
+        print("Background learning started...\n")
+
+        # Wait for completion or interrupt
+        while learner._running:
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\n\nStopping background learning...")
+        learner.stop()
+
+    print_stats()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Swarm Training Loop")
-    parser.add_argument("mode", choices=["benchmark", "self-improve", "interactive", "autonomous", "stats"],
+    parser.add_argument("mode", choices=["benchmark", "self-improve", "interactive", "autonomous", "daemon", "stats"],
                        help="Training mode")
     parser.add_argument("--rounds", type=int, default=1, help="Number of rounds (benchmark mode)")
     parser.add_argument("--iterations", type=int, default=3, help="Number of iterations (self-improve mode)")
-    parser.add_argument("--duration", type=int, default=10, help="Duration in minutes (autonomous mode)")
+    parser.add_argument("--duration", type=int, default=10, help="Duration in minutes (autonomous/daemon mode)")
     parser.add_argument("--model", default="sonnet", choices=["haiku", "sonnet", "opus"],
                        help="Model to use")
 
@@ -377,6 +419,8 @@ def main():
         run_interactive(model=args.model)
     elif args.mode == "autonomous":
         run_autonomous(duration_minutes=args.duration, model=args.model)
+    elif args.mode == "daemon":
+        run_daemon(duration_minutes=args.duration)
 
 
 if __name__ == "__main__":
