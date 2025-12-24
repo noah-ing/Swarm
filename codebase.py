@@ -587,35 +587,50 @@ class CodebaseAnalyzer:
         return codebase_map
 
     def get_relevant_files(self, codebase_map: CodebaseMap, task: str) -> list[str]:
-        """Find files relevant to a task."""
+        """
+        Find files relevant to a task using hybrid keyword + semantic matching.
+        """
+        from embeddings import get_embedding_service
+
         task_lower = task.lower()
         task_words = set(task_lower.split())
         relevant = []
 
-        for path, info in codebase_map.files.items():
-            score = 0
+        # Get task embedding for semantic comparison
+        embedding_service = get_embedding_service()
+        task_embedding = embedding_service.embed(task).embedding
 
-            # Check path match
+        for path, info in codebase_map.files.items():
+            score = 0.0
+
+            # Keyword matching (fast, exact)
             path_lower = path.lower()
             path_words = set(re.findall(r'\w+', path_lower))
             path_overlap = len(task_words & path_words)
             score += path_overlap * 2
 
-            # Check function/class names
             symbols = set(f.lower() for f in info.functions + info.classes)
             symbol_overlap = len(task_words & symbols)
             score += symbol_overlap * 3
 
-            # Check purpose
             if any(w in info.purpose.lower() for w in task_words):
                 score += 2
 
-            if score > 0:
-                relevant.append((path, score))
+            # Semantic matching (slower, but catches conceptual similarity)
+            file_description = f"{path} {info.purpose} {' '.join(info.functions[:10])} {' '.join(info.classes[:5])}"
+            file_embedding = embedding_service.embed(file_description).embedding
+            semantic_similarity = embedding_service.similarity(task_embedding, file_embedding)
 
-        # Sort by relevance
+            # Semantic similarity contributes to score (scaled to match keyword scoring)
+            if semantic_similarity > 0.3:  # Only count meaningful similarity
+                score += semantic_similarity * 5
+
+            if score > 0:
+                relevant.append((path, score, semantic_similarity))
+
+        # Sort by combined score
         relevant.sort(key=lambda x: x[1], reverse=True)
-        return [path for path, _ in relevant[:10]]
+        return [path for path, _, _ in relevant[:10]]
 
     def get_context_for_task(self, root_path: str, task: str) -> str:
         """Get relevant context for a task."""

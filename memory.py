@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from embeddings import get_embedding_service
+
 
 @dataclass
 class Memory:
@@ -106,54 +108,19 @@ class MemoryStore:
         """Create a hash ID for a task."""
         return hashlib.sha256(task.encode()).hexdigest()[:16]
 
-    def _simple_embedding(self, text: str) -> list[float]:
+    def _get_embedding(self, text: str) -> list[float]:
         """
-        Create a simple bag-of-words embedding.
-        For production, use a real embedding model.
+        Get embedding for text using the embedding service.
+        Uses OpenAI text-embedding-3-small with caching.
         """
-        # Normalize and tokenize
-        words = text.lower().split()
-        word_set = set(words)
+        service = get_embedding_service()
+        result = service.embed(text)
+        return result.embedding
 
-        # Create feature vector based on common programming terms
-        features = [
-            "file", "read", "write", "create", "delete", "update", "fix",
-            "bug", "error", "test", "function", "class", "import", "api",
-            "database", "sql", "json", "http", "request", "response",
-            "loop", "condition", "variable", "string", "number", "list",
-            "dict", "array", "object", "return", "print", "log", "debug",
-            "config", "setting", "env", "path", "directory", "git", "commit",
-            "python", "javascript", "typescript", "react", "node", "bash",
-            "install", "package", "dependency", "build", "deploy", "run",
-            "refactor", "optimize", "performance", "memory", "cache",
-            "auth", "user", "password", "token", "session", "cookie",
-            "frontend", "backend", "server", "client", "component", "hook",
-        ]
-
-        # Binary presence vector + word frequency features
-        embedding = []
-        for feature in features:
-            embedding.append(1.0 if feature in word_set else 0.0)
-
-        # Add some statistical features
-        embedding.append(min(1.0, len(words) / 100))  # Normalized length
-        embedding.append(min(1.0, len(word_set) / 50))  # Vocabulary diversity
-
-        return embedding
-
-    def _cosine_similarity(self, a: list[float], b: list[float]) -> float:
-        """Calculate cosine similarity between two vectors."""
-        if len(a) != len(b):
-            return 0.0
-
-        dot_product = sum(x * y for x, y in zip(a, b))
-        norm_a = sum(x * x for x in a) ** 0.5
-        norm_b = sum(x * x for x in b) ** 0.5
-
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-
-        return dot_product / (norm_a * norm_b)
+    def _similarity(self, a: list[float], b: list[float]) -> float:
+        """Calculate cosine similarity between two embeddings."""
+        service = get_embedding_service()
+        return service.similarity(a, b)
 
     def store(self, memory: Memory) -> str:
         """Store a memory entry."""
@@ -161,7 +128,7 @@ class MemoryStore:
         cursor = conn.cursor()
 
         memory_id = memory.id or self._hash_task(memory.task)
-        embedding = memory.embedding or self._simple_embedding(memory.task + " " + memory.solution)
+        embedding = memory.embedding or self._get_embedding(memory.task + " " + memory.solution)
 
         cursor.execute("""
             INSERT OR REPLACE INTO memories
@@ -198,7 +165,7 @@ class MemoryStore:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        query_embedding = self._simple_embedding(query)
+        query_embedding = self._get_embedding(query)
 
         where_clause = "WHERE success = 1" if success_only else ""
         cursor.execute(f"""
@@ -214,7 +181,7 @@ class MemoryStore:
         for row in cursor.fetchall():
             try:
                 stored_embedding = json.loads(row[9]) if row[9] else []
-                similarity = self._cosine_similarity(query_embedding, stored_embedding)
+                similarity = self._similarity(query_embedding, stored_embedding)
 
                 if similarity >= min_similarity:
                     memory = Memory(
@@ -432,6 +399,36 @@ class MemoryStore:
 
         conn.commit()
         conn.close()
+
+    def re_embed_all(self) -> int:
+        """
+        Re-embed all memories with the current embedding model.
+
+        Call this after upgrading from bag-of-words to real embeddings.
+
+        Returns:
+            Number of memories re-embedded
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, task, solution FROM memories")
+        rows = cursor.fetchall()
+
+        count = 0
+        for row in rows:
+            memory_id, task, solution = row
+            text = f"{task} {solution}"
+            new_embedding = self._get_embedding(text)
+
+            cursor.execute("""
+                UPDATE memories SET embedding = ? WHERE id = ?
+            """, (json.dumps(new_embedding), memory_id))
+            count += 1
+
+        conn.commit()
+        conn.close()
+        return count
 
     def get_stats(self) -> dict[str, Any]:
         """Get overall memory statistics."""
