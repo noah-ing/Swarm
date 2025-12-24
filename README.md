@@ -88,6 +88,12 @@ Most AI agent frameworks execute tasks. Swarm **learns from every execution**:
 - **Safe Restoration**: Restores files to previous state on failure
 - **Git Integration**: Uses git for rollback when available
 
+### Multi-Agent Negotiation (`negotiation.py`, `agents/critic.py`, `agents/negotiator.py`)
+- **Multiple Proposers**: Generate 2-3 solutions from different models
+- **Structured Critique**: CriticAgent reviews each solution for issues
+- **Consensus Building**: NegotiatorAgent selects or synthesizes best approach
+- **Risk-Based Activation**: Auto-triggers on HIGH/CRITICAL risk tasks
+
 ## Installation
 
 ```bash
@@ -182,7 +188,8 @@ All learning is stored in SQLite databases:
 ├── codebase.db        # Project understanding cache
 ├── knowledge.db       # Cross-project knowledge transfer
 ├── embeddings_cache.db # Cached embeddings (saves API calls)
-└── rollback.db        # File snapshots for rollback
+├── rollback.db        # File snapshots for rollback
+└── negotiation.db     # Multi-agent debate history
 ```
 
 Learning persists across sessions and accumulates over time.
@@ -238,9 +245,9 @@ Over time, prompts naturally evolve to be more effective.
 - [x] Cross-project knowledge transfer (universal insights, transferability assessment)
 - [x] Effect prediction before changes (risk scoring, impact analysis)
 - [x] Rollback planning (file snapshots, safe restoration, git integration)
+- [x] Multi-agent negotiation (critique, consensus, risk-based activation)
 
 ### Research Directions
-- [ ] Multi-agent negotiation
 - [ ] Hierarchical goal decomposition
 - [ ] Continuous background learning
 

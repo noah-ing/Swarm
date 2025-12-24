@@ -24,6 +24,7 @@ from memory import get_memory_store
 from knowledge import get_knowledge_store
 from effects import get_effect_predictor, EffectPrediction
 from rollback import get_rollback_manager, RollbackPlan
+from negotiation import get_negotiation_coordinator, NegotiationResult
 
 
 @dataclass
@@ -35,6 +36,7 @@ class SupervisorResult:
     execution_result: OrchestratorResult | GruntResult | None = None
     effect_prediction: EffectPrediction | None = None
     rollback_plan_id: str | None = None
+    negotiation_result: NegotiationResult | None = None
     strategy_used: str = ""
     model_used: str = ""
     tokens_used: int = 0
@@ -69,6 +71,7 @@ class Supervisor(BaseAgent):
         self.knowledge = get_knowledge_store()
         self.effects = get_effect_predictor()
         self.rollback = get_rollback_manager()
+        self.negotiation = get_negotiation_coordinator(working_dir)
 
         # Set current project for cross-project knowledge
         if working_dir:
@@ -80,6 +83,7 @@ class Supervisor(BaseAgent):
         self.on_strategy: Callable[[str], None] | None = None
         self.on_learning: Callable[[str], None] | None = None
         self.on_effect_prediction: Callable[[EffectPrediction], None] | None = None
+        self.on_negotiation: Callable[[NegotiationResult], None] | None = None
 
     def run(
         self,
@@ -137,11 +141,18 @@ class Supervisor(BaseAgent):
         # Phase 4.5: Create rollback plan
         rollback_plan = self._phase4_5_create_rollback_plan(task, effect_prediction, result)
 
-        # Phase 5: Execute based on strategy
-        self._phase5_execute_task(
-            strategy, task, full_context, recommended_model,
-            evolved_prompt, skip_qa, stream, result
-        )
+        # Phase 5: Execute (with optional negotiation for high-risk tasks)
+        if self.negotiation.should_negotiate(effect_prediction):
+            # High-risk: use multi-agent negotiation
+            self._phase5_execute_with_negotiation(
+                task, full_context, effect_prediction, result
+            )
+        else:
+            # Normal execution
+            self._phase5_execute_task(
+                strategy, task, full_context, recommended_model,
+                evolved_prompt, skip_qa, stream, result
+            )
 
         # Mark rollback plan as executed
         if rollback_plan:
@@ -385,6 +396,32 @@ class Supervisor(BaseAgent):
 
         return guessed[:5]
 
+    def _phase5_execute_with_negotiation(
+        self,
+        task: str,
+        context: str,
+        effect_prediction: EffectPrediction,
+        result: SupervisorResult,
+    ) -> None:
+        """Phase 5 (negotiation): Use multi-agent debate for high-risk tasks."""
+        proposer_count = self.negotiation.get_proposer_count(effect_prediction)
+
+        negotiation_result = self.negotiation.negotiate(
+            task=task,
+            context=context,
+            proposer_count=proposer_count,
+        )
+
+        result.negotiation_result = negotiation_result
+
+        if self.on_negotiation:
+            self.on_negotiation(negotiation_result)
+
+        # Use the negotiated solution as the result
+        result.success = negotiation_result.success
+        result.message = negotiation_result.final_solution
+        result.tokens_used = negotiation_result.total_tokens
+
     def _phase5_execute_task(
         self,
         strategy: str,
@@ -585,6 +622,7 @@ class Supervisor(BaseAgent):
             "evolution": self.evolution.get_stats(),
             "knowledge": self.knowledge.get_stats(),
             "rollback": self.rollback.get_stats(),
+            "negotiation": self.negotiation.get_stats(),
         }
 
     def execute_rollback(self, plan_id: str) -> dict[str, Any]:

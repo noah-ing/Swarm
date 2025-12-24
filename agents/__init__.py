@@ -4,6 +4,8 @@ from .orchestrator import Orchestrator, OrchestratorResult
 from .qa import QAAgent, QAResult
 from .thinker import ThinkerAgent, ThinkingResult
 from .supervisor import Supervisor, SupervisorResult
+from .critic import CriticAgent, CritiqueResult
+from .negotiator import NegotiatorAgent, ConsensusResult
 
 __all__ = [
     "BaseAgent",
@@ -18,4 +20,8 @@ __all__ = [
     "ThinkingResult",
     "Supervisor",
     "SupervisorResult",
+    "CriticAgent",
+    "CritiqueResult",
+    "NegotiatorAgent",
+    "ConsensusResult",
 ]
