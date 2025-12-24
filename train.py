@@ -19,6 +19,7 @@ from agents import Supervisor
 from brain import get_brain
 from evolution import get_evolution
 from memory import get_memory_store
+from knowledge import get_knowledge_store
 
 
 # Benchmark tasks for training
@@ -71,30 +72,38 @@ def print_stats():
     brain = get_brain()
     evolution = get_evolution()
     memory = get_memory_store()
+    knowledge = get_knowledge_store()
 
     brain_stats = brain.get_stats()
     evo_stats = evolution.get_stats()
     mem_stats = memory.get_stats()
+    know_stats = knowledge.get_stats()
 
     print("\n" + "="*60)
-    print("📊 SWARM LEARNING STATS")
+    print(" SWARM LEARNING STATS")
     print("="*60)
-    print(f"🧠 Brain:")
+    print(f" Brain:")
     print(f"   Reflections: {brain_stats['total_reflections']} ({brain_stats['successful_reflections']} successful)")
     print(f"   Skills learned: {brain_stats['skills_learned']}")
     print(f"   Failure patterns tracked: {brain_stats['failure_patterns_tracked']}")
     print(f"   Avg confidence: {brain_stats['avg_confidence']:.1%}")
 
-    print(f"\n🧬 Evolution:")
+    print(f"\n Evolution:")
     print(f"   Total mutations: {evo_stats['total_mutations']}")
     print(f"   Retirements: {evo_stats['total_retirements']}")
     for agent_type, stats in evo_stats.get('agents', {}).items():
         print(f"   {agent_type}: {stats['active_variants']} active variants, {stats['avg_success_rate']:.1%} success")
 
-    print(f"\n💾 Memory:")
+    print(f"\n Memory:")
     print(f"   Solutions stored: {mem_stats['total_memories']}")
     print(f"   Successful solutions: {mem_stats['successful_memories']}")
     print(f"   Models tracked: {', '.join(mem_stats.get('models_used', [])) or 'none yet'}")
+
+    print(f"\n Knowledge Transfer:")
+    print(f"   Projects tracked: {know_stats['total_projects']}")
+    print(f"   Cross-project memories: {know_stats['total_memories']} ({know_stats['transferable_memories']} transferable)")
+    print(f"   Universal insights: {know_stats['universal_insights']}")
+    print(f"   Transfers: {know_stats['total_transfers']} ({know_stats['transfer_success_rate']:.0%} success rate)")
     print("="*60 + "\n")
 
 

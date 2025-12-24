@@ -70,6 +70,12 @@ Most AI agent frameworks execute tasks. Swarm **learns from every execution**:
 - **Pattern Detection**: Identifies architectural patterns
 - **Context Retrieval**: Provides relevant files for tasks
 
+### Knowledge Transfer (`knowledge.py`)
+- **Project Tracking**: Identifies and tracks different codebases
+- **Cross-Project Search**: Finds relevant solutions from other projects
+- **Universal Insights**: Extracts patterns that work everywhere
+- **Transferability Assessment**: Determines which solutions generalize
+
 ## Installation
 
 ```bash
@@ -158,10 +164,12 @@ All learning is stored in SQLite databases:
 
 ```
 ~/.swarm/
-├── brain.db        # Reflections, insights, skills
-├── evolution.db    # Prompt variants, mutations, fitness
-├── memory.db       # Past solutions, model performance
-└── codebase.db     # Project understanding cache
+├── brain.db           # Reflections, insights, skills
+├── evolution.db       # Prompt variants, mutations, fitness
+├── memory.db          # Past solutions, model performance
+├── codebase.db        # Project understanding cache
+├── knowledge.db       # Cross-project knowledge transfer
+└── embeddings_cache.db # Cached embeddings (saves API calls)
 ```
 
 Learning persists across sessions and accumulates over time.
@@ -212,9 +220,11 @@ Over time, prompts naturally evolve to be more effective.
 
 ## Roadmap
 
+### Completed
+- [x] Real embedding model for semantic search (OpenAI text-embedding-3-small)
+- [x] Cross-project knowledge transfer (universal insights, transferability assessment)
+
 ### Next Steps
-- [ ] Real embedding model for semantic search
-- [ ] Cross-project knowledge transfer
 - [ ] Effect prediction before changes
 - [ ] Rollback planning
 

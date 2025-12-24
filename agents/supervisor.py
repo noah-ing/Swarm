@@ -21,6 +21,7 @@ from brain import get_brain, CognitiveArchitecture
 from evolution import get_evolution, PromptEvolution
 from codebase import get_codebase_analyzer, CodebaseAnalyzer
 from memory import get_memory_store
+from knowledge import get_knowledge_store
 
 
 @dataclass
@@ -61,6 +62,11 @@ class Supervisor(BaseAgent):
         self.evolution = get_evolution()
         self.codebase = get_codebase_analyzer()
         self.memory = get_memory_store()
+        self.knowledge = get_knowledge_store()
+
+        # Set current project for cross-project knowledge
+        if working_dir:
+            self.knowledge.set_current_project(working_dir)
 
         # Callbacks
         self.on_thinking: Callable[[ThinkingResult], None] | None = None
@@ -131,6 +137,9 @@ class Supervisor(BaseAgent):
             prompt_variant_id, result
         )
 
+        # Phase 8: Store project-aware memory
+        self._phase8_store_knowledge(task, result, recommended_model)
+
         # Calculate cost
         costs = self.settings.cost_per_million.get(recommended_model, {"input": 0, "output": 0})
         # Rough split: 70% input, 30% output
@@ -144,7 +153,7 @@ class Supervisor(BaseAgent):
         return result
 
     def _phase1_understand_codebase(self, task: str, context: str) -> str:
-        """Phase 1: Understand the codebase and gather context."""
+        """Phase 1: Understand the codebase and gather cross-project knowledge."""
         codebase_context = ""
         if self.working_dir:
             try:
@@ -154,7 +163,29 @@ class Supervisor(BaseAgent):
             except Exception:
                 pass  # Codebase analysis is optional
 
-        return f"{context}\n\n{codebase_context}" if codebase_context else context
+        # Get cross-project knowledge
+        cross_project_context = ""
+        try:
+            matches = self.knowledge.search_cross_project(task, limit=3)
+            if matches:
+                parts = ["## Cross-Project Knowledge\n"]
+                for m in matches:
+                    if m.source_project_name:
+                        parts.append(f"### From project '{m.source_project_name}' (relevance: {m.relevance_score:.0%})")
+                    parts.append(f"**Task:** {m.task[:200]}")
+                    parts.append(f"**Solution:** {m.solution[:300]}")
+                    parts.append("")
+                cross_project_context = "\n".join(parts)
+        except Exception:
+            pass  # Cross-project knowledge is optional
+
+        full_context = context
+        if codebase_context:
+            full_context = f"{full_context}\n\n{codebase_context}"
+        if cross_project_context:
+            full_context = f"{full_context}\n\n{cross_project_context}"
+
+        return full_context
 
     def _phase2_think_about_task(
         self, 
@@ -304,8 +335,8 @@ class Supervisor(BaseAgent):
                 self.on_learning(insight)
 
     def _phase7_update_evolution(
-        self, 
-        prompt_variant_id: int | None, 
+        self,
+        prompt_variant_id: int | None,
         result: SupervisorResult
     ) -> None:
         """Phase 7: Update evolution system with task outcome."""
@@ -316,6 +347,40 @@ class Supervisor(BaseAgent):
                 result.tokens_used,
                 result.duration_seconds,
             )
+
+    def _phase8_store_knowledge(
+        self,
+        task: str,
+        result: SupervisorResult,
+        model: str,
+    ) -> None:
+        """Phase 8: Store project-aware memory for cross-project learning."""
+        try:
+            # Extract files modified from execution result if available
+            files_modified = []
+            if result.execution_result:
+                if isinstance(result.execution_result, GruntResult):
+                    # Could parse result for file mentions
+                    pass
+                elif hasattr(result.execution_result, 'subtask_results'):
+                    # Collect from orchestrator subtasks
+                    for sr in result.execution_result.subtask_results:
+                        if hasattr(sr, 'result') and sr.result:
+                            # Simple heuristic: look for file paths in results
+                            pass
+
+            self.knowledge.store_memory(
+                task=task,
+                solution=result.message[:1000] if result.message else "",
+                success=result.success,
+                model=model,
+                tokens_used=result.tokens_used,
+                cost_usd=result.cost_usd,
+                files_modified=files_modified,
+                tags=[result.strategy_used] if result.strategy_used else [],
+            )
+        except Exception:
+            pass  # Knowledge storage is optional, don't fail the task
 
     def _execute_direct(
         self,
@@ -398,6 +463,7 @@ class Supervisor(BaseAgent):
             "brain": self.brain.get_stats(),
             "memory": self.memory.get_stats(),
             "evolution": self.evolution.get_stats(),
+            "knowledge": self.knowledge.get_stats(),
         }
 
     def __repr__(self) -> str:
