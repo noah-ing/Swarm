@@ -6,23 +6,24 @@ import sys
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
 from rich.console import Console
 from rich.logging import RichHandler
 
+# Import custom exceptions
+from exceptions import APIError, SwarmBaseException
 
 # Configure rich console
 console = Console()
 
-
 def setup_logging(
     level: str = "INFO",
-    log_file: str | None = None,
+    log_file: Optional[str] = None,
     json_format: bool = False,
 ) -> logging.Logger:
     """
-    Set up logging for Swarm.
+    Set up logging for Swarm with comprehensive error handling.
 
     Args:
         level: Log level (DEBUG, INFO, WARNING, ERROR)
@@ -60,11 +61,28 @@ def setup_logging(
         file_handler.setFormatter(JsonFormatter())
         logger.addHandler(file_handler)
 
+    # Add custom exception logging
+    def handle_unhandled_exception(exc_type, exc_value, exc_traceback):
+        """Handle uncaught exceptions with comprehensive logging."""
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+
+        logger.critical(
+            "Uncaught Exception",
+            extra={
+                "type": exc_type.__name__,
+                "value": str(exc_value),
+                "traceback": exc_traceback
+            }
+        )
+
+    sys.excepthook = handle_unhandled_exception
+
     return logger
 
-
 class JsonFormatter(logging.Formatter):
-    """JSON log formatter."""
+    """Enhanced JSON log formatter with extensive error context."""
 
     def format(self, record: logging.LogRecord) -> str:
         log_data = {
@@ -74,146 +92,54 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
         }
 
+        # Special handling for exceptions
+        if record.exc_info:
+            exc_type, exc_value, exc_traceback = record.exc_info
+            log_data.update({
+                "exception_type": exc_type.__name__,
+                "exception_message": str(exc_value),
+            })
+
+        # Handle custom exception types
+        if isinstance(record.msg, (APIError, SwarmBaseException)):
+            log_data.update({
+                "error_context": record.msg.context
+            })
+
         # Add extra fields
         if hasattr(record, "extra"):
             log_data.update(record.extra)
 
         return json.dumps(log_data)
 
-
 @dataclass
-class TaskMetrics:
-    """Metrics for a task execution."""
-
-    task_id: str
-    start_time: datetime = field(default_factory=datetime.utcnow)
-    end_time: datetime | None = None
-    duration_seconds: float = 0.0
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cost_usd: float = 0.0
-    subtasks_total: int = 0
-    subtasks_completed: int = 0
-    subtasks_failed: int = 0
-    retries: int = 0
-    model_calls: list[dict] = field(default_factory=list)
-
-    def complete(self) -> None:
-        """Mark the task as complete."""
-        self.end_time = datetime.utcnow()
-        self.duration_seconds = (self.end_time - self.start_time).total_seconds()
-
-    def add_model_call(
-        self,
-        model: str,
-        input_tokens: int,
-        output_tokens: int,
-        latency_ms: float,
-    ) -> None:
-        """Record a model call."""
-        self.model_calls.append({
-            "model": model,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "latency_ms": latency_ms,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
-        self.input_tokens += input_tokens
-        self.output_tokens += output_tokens
-
-    def to_dict(self) -> dict:
-        """Convert to dictionary."""
-        return {
-            "task_id": self.task_id,
-            "start_time": self.start_time.isoformat(),
-            "end_time": self.end_time.isoformat() if self.end_time else None,
-            "duration_seconds": self.duration_seconds,
-            "input_tokens": self.input_tokens,
-            "output_tokens": self.output_tokens,
-            "cost_usd": self.cost_usd,
-            "subtasks_total": self.subtasks_total,
-            "subtasks_completed": self.subtasks_completed,
-            "subtasks_failed": self.subtasks_failed,
-            "retries": self.retries,
-            "model_calls": self.model_calls,
-        }
-
-
 class MetricsCollector:
-    """Collects and aggregates metrics across tasks."""
+    """Simple metrics collector stub."""
+    total_tasks: int = 0
+    successful_tasks: int = 0
+    failed_tasks: int = 0
+    total_tokens: int = 0
+    total_cost: float = 0.0
 
-    def __init__(self, persist_path: str | None = None):
-        self.tasks: list[TaskMetrics] = []
-        self.persist_path = Path(persist_path) if persist_path else None
+    def record_task(self, success: bool, tokens: int = 0, cost: float = 0.0):
+        self.total_tasks += 1
+        if success:
+            self.successful_tasks += 1
+        else:
+            self.failed_tasks += 1
+        self.total_tokens += tokens
+        self.total_cost += cost
 
-    def start_task(self, task_id: str) -> TaskMetrics:
-        """Start tracking a new task."""
-        metrics = TaskMetrics(task_id=task_id)
-        self.tasks.append(metrics)
-        return metrics
-
-    def get_current(self) -> TaskMetrics | None:
-        """Get the current (last) task metrics."""
-        return self.tasks[-1] if self.tasks else None
-
-    def get_totals(self) -> dict:
-        """Get aggregate totals across all tasks."""
-        return {
-            "total_tasks": len(self.tasks),
-            "total_input_tokens": sum(t.input_tokens for t in self.tasks),
-            "total_output_tokens": sum(t.output_tokens for t in self.tasks),
-            "total_cost_usd": sum(t.cost_usd for t in self.tasks),
-            "total_duration_seconds": sum(t.duration_seconds for t in self.tasks),
-            "total_retries": sum(t.retries for t in self.tasks),
-        }
-
-    def persist(self) -> None:
-        """Persist metrics to disk."""
-        if not self.persist_path:
-            return
-
-        self.persist_path.parent.mkdir(parents=True, exist_ok=True)
-
-        data = {
-            "tasks": [t.to_dict() for t in self.tasks],
-            "totals": self.get_totals(),
-            "exported_at": datetime.utcnow().isoformat(),
-        }
-
-        with open(self.persist_path, "w") as f:
-            json.dump(data, f, indent=2)
-
-    def load(self) -> None:
-        """Load metrics from disk."""
-        if not self.persist_path or not self.persist_path.exists():
-            return
-
-        with open(self.persist_path) as f:
-            data = json.load(f)
-
-        # Reconstruct TaskMetrics objects
-        for task_data in data.get("tasks", []):
-            metrics = TaskMetrics(
-                task_id=task_data["task_id"],
-                input_tokens=task_data["input_tokens"],
-                output_tokens=task_data["output_tokens"],
-                cost_usd=task_data["cost_usd"],
-                subtasks_total=task_data["subtasks_total"],
-                subtasks_completed=task_data["subtasks_completed"],
-                subtasks_failed=task_data["subtasks_failed"],
-                retries=task_data["retries"],
-            )
-            metrics.duration_seconds = task_data["duration_seconds"]
-            self.tasks.append(metrics)
+    def get_summary(self) -> dict:
+        return asdict(self)
 
 
-# Global metrics collector
-_metrics_collector: MetricsCollector | None = None
+_metrics_collector: Optional[MetricsCollector] = None
 
 
-def get_metrics_collector(persist_path: str | None = None) -> MetricsCollector:
+def get_metrics_collector() -> MetricsCollector:
     """Get or create the global metrics collector."""
     global _metrics_collector
     if _metrics_collector is None:
-        _metrics_collector = MetricsCollector(persist_path)
+        _metrics_collector = MetricsCollector()
     return _metrics_collector

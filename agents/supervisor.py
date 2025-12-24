@@ -72,21 +72,21 @@ class Supervisor(BaseAgent):
         self,
         task: str,
         context: str = "",
-        allow_ask: bool = True,
         skip_thinking: bool = False,
+        allow_ask: bool = True,
         skip_qa: bool = False,
         stream: bool = False,
     ) -> SupervisorResult:
         """
-        Execute a task with full cognitive capabilities.
+        Execute a task with full cognitive processing.
 
         Args:
             task: The task to execute
-            context: Additional context
+            context: Additional context for the task
+            skip_thinking: Skip the thinking phase for speed
             allow_ask: Allow asking user for clarification
-            skip_thinking: Skip the thinking phase (faster but less smart)
-            skip_qa: Skip QA validation
-            stream: Enable streaming output
+            skip_qa: Skip quality assurance checks
+            stream: Stream output to callback
 
         Returns:
             SupervisorResult with full execution details
@@ -95,6 +95,56 @@ class Supervisor(BaseAgent):
         result = SupervisorResult(success=False, message="")
 
         # Phase 1: Understand the codebase
+        full_context = self._phase1_understand_codebase(task, context)
+
+        # Phase 2: Think about the task
+        thinking, full_context, should_continue = self._phase2_think_about_task(
+            task, full_context, skip_thinking, allow_ask, result
+        )
+        if not should_continue:
+            result.duration_seconds = time.time() - start_time
+            return result
+
+        # Phase 3: Select strategy and model
+        strategy, recommended_model = self._phase3_select_strategy_and_model(
+            thinking, task, full_context, result
+        )
+
+        # Phase 4: Get evolved prompt if available
+        prompt_variant_id, evolved_prompt = self._phase4_get_evolved_prompt()
+
+        # Phase 5: Execute based on strategy
+        self._phase5_execute_task(
+            strategy, task, full_context, recommended_model, 
+            evolved_prompt, skip_qa, stream, result
+        )
+
+        result.duration_seconds = time.time() - start_time
+
+        # Phase 6: Reflect and learn
+        self._phase6_reflect_and_learn(
+            task, result, recommended_model
+        )
+
+        # Phase 7: Update evolution
+        self._phase7_update_evolution(
+            prompt_variant_id, result
+        )
+
+        # Calculate cost
+        costs = self.settings.cost_per_million.get(recommended_model, {"input": 0, "output": 0})
+        # Rough split: 70% input, 30% output
+        input_tokens = int(result.tokens_used * 0.7)
+        output_tokens = result.tokens_used - input_tokens
+        result.cost_usd = (
+            (input_tokens / 1_000_000) * costs["input"] +
+            (output_tokens / 1_000_000) * costs["output"]
+        )
+
+        return result
+
+    def _phase1_understand_codebase(self, task: str, context: str) -> str:
+        """Phase 1: Understand the codebase and gather context."""
         codebase_context = ""
         if self.working_dir:
             try:
@@ -104,10 +154,25 @@ class Supervisor(BaseAgent):
             except Exception:
                 pass  # Codebase analysis is optional
 
-        full_context = f"{context}\n\n{codebase_context}" if codebase_context else context
+        return f"{context}\n\n{codebase_context}" if codebase_context else context
 
-        # Phase 2: Think about the task
+    def _phase2_think_about_task(
+        self, 
+        task: str, 
+        full_context: str, 
+        skip_thinking: bool, 
+        allow_ask: bool,
+        result: SupervisorResult
+    ) -> tuple[ThinkingResult | None, str, bool]:
+        """
+        Phase 2: Think about the task and potentially interact with user.
+        
+        Returns:
+            Tuple of (thinking_result, updated_context, should_continue)
+        """
         thinking = None
+        should_continue = True
+        
         if not skip_thinking:
             thinker = ThinkerAgent(model=self.model)
             thinking = thinker.think(task, full_context)
@@ -131,14 +196,23 @@ class Supervisor(BaseAgent):
 
                     if user_response and "no" in user_response.lower():
                         result.message = "Task cancelled by user"
-                        result.duration_seconds = time.time() - start_time
-                        return result
+                        should_continue = False
+                        return thinking, full_context, should_continue
 
                     if user_response and user_response.lower() not in ("yes", "y", "proceed"):
                         # User provided clarification
                         full_context += f"\n\n## User Clarification\n{user_response}"
+        
+        return thinking, full_context, should_continue
 
-        # Phase 3: Select strategy and model
+    def _phase3_select_strategy_and_model(
+        self, 
+        thinking: ThinkingResult | None, 
+        task: str, 
+        full_context: str,
+        result: SupervisorResult
+    ) -> tuple[str, str]:
+        """Phase 3: Select execution strategy and model."""
         if thinking:
             strategy = thinking.strategy
             recommended_model = thinking.recommended_model
@@ -153,11 +227,25 @@ class Supervisor(BaseAgent):
 
         if self.on_strategy:
             self.on_strategy(f"Strategy: {strategy}, Model: {recommended_model}")
+        
+        return strategy, recommended_model
 
-        # Phase 4: Get evolved prompt if available
-        prompt_variant_id, evolved_prompt = self.evolution.get_prompt("grunt")
+    def _phase4_get_evolved_prompt(self) -> tuple[int | None, str | None]:
+        """Phase 4: Get evolved prompt if available."""
+        return self.evolution.get_prompt("grunt")
 
-        # Phase 5: Execute based on strategy
+    def _phase5_execute_task(
+        self,
+        strategy: str,
+        task: str,
+        full_context: str,
+        recommended_model: str,
+        evolved_prompt: str | None,
+        skip_qa: bool,
+        stream: bool,
+        result: SupervisorResult
+    ) -> None:
+        """Phase 5: Execute the task based on selected strategy."""
         try:
             if strategy in ("direct", "direct_execution", "template_match"):
                 # Single grunt execution
@@ -193,9 +281,13 @@ class Supervisor(BaseAgent):
             result.success = False
             result.message = f"Execution error: {str(e)}"
 
-        result.duration_seconds = time.time() - start_time
-
-        # Phase 6: Reflect and learn
+    def _phase6_reflect_and_learn(
+        self, 
+        task: str, 
+        result: SupervisorResult, 
+        recommended_model: str
+    ) -> None:
+        """Phase 6: Reflect on execution and generate learnings."""
         reflection = self.brain.reflect(
             task=task,
             outcome=result.message,
@@ -211,7 +303,12 @@ class Supervisor(BaseAgent):
             for insight in reflection.insights:
                 self.on_learning(insight)
 
-        # Phase 7: Update evolution
+    def _phase7_update_evolution(
+        self, 
+        prompt_variant_id: int | None, 
+        result: SupervisorResult
+    ) -> None:
+        """Phase 7: Update evolution system with task outcome."""
         if prompt_variant_id:
             self.evolution.record_outcome(
                 prompt_variant_id,
@@ -219,18 +316,6 @@ class Supervisor(BaseAgent):
                 result.tokens_used,
                 result.duration_seconds,
             )
-
-        # Calculate cost
-        costs = self.settings.cost_per_million.get(recommended_model, {"input": 0, "output": 0})
-        # Rough split: 70% input, 30% output
-        input_tokens = int(result.tokens_used * 0.7)
-        output_tokens = result.tokens_used - input_tokens
-        result.cost_usd = (
-            (input_tokens / 1_000_000) * costs["input"] +
-            (output_tokens / 1_000_000) * costs["output"]
-        )
-
-        return result
 
     def _execute_direct(
         self,
@@ -308,9 +393,13 @@ class Supervisor(BaseAgent):
         )
 
     def get_cognitive_stats(self) -> dict[str, Any]:
-        """Get statistics about the cognitive systems."""
+        """Get stats from all cognitive components."""
         return {
             "brain": self.brain.get_stats(),
-            "evolution": self.evolution.get_stats(),
             "memory": self.memory.get_stats(),
+            "evolution": self.evolution.get_stats(),
         }
+
+    def __repr__(self) -> str:
+        """String representation."""
+        return f"Supervisor(model={self.model}, working_dir={self.working_dir})"

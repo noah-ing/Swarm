@@ -54,7 +54,7 @@ class QAResult:
 class QAAgent(BaseAgent):
     """Reviews and validates grunt outputs."""
 
-    def __init__(self, model: str = "sonnet"):
+    def __init__(self, model: str = "sonnet") -> None:
         super().__init__(model=model, system_prompt=QA_SYSTEM_PROMPT)
 
     def run(

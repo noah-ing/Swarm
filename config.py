@@ -3,9 +3,10 @@
 import os
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError as PydanticValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from exceptions import ConfigurationError, ValidationError
 
 class Settings(BaseSettings):
     """Swarm configuration loaded from environment variables."""
@@ -26,7 +27,24 @@ class Settings(BaseSettings):
     # Model defaults
     default_model: str = "sonnet"
 
-    # Model mappings
+    def __init__(self, **data):
+        """Enhanced initialization with validation."""
+        try:
+            super().__init__(**data)
+            self._validate_configuration()
+        except PydanticValidationError as e:
+            raise ValidationError(
+                message="Invalid configuration settings",
+                details=str(e)
+            ) from e
+
+    def _validate_configuration(self):
+        """Additional configuration validation."""
+        if not self.anthropic_api_key and not self.openai_api_key:
+            raise ConfigurationError(
+                "No API keys provided. Please set at least one API key."
+            )
+
     @property
     def model_map(self) -> dict[str, str]:
         """Map friendly names to actual model IDs."""
@@ -43,14 +61,21 @@ class Settings(BaseSettings):
         }
 
     def get_model_id(self, friendly_name: str) -> str:
-        """Convert friendly name to model ID."""
-        return self.model_map.get(friendly_name, friendly_name)
+        """Convert friendly name to model ID with error handling."""
+        try:
+            return self.model_map.get(friendly_name, friendly_name)
+        except Exception as e:
+            raise ConfigurationError(
+                f"Invalid model name: {friendly_name}"
+            ) from e
 
     def get_provider(self, model: str) -> Literal["anthropic", "openai"]:
-        """Determine provider from model name."""
+        """Determine provider from model name with robust detection."""
         if model in ("haiku", "sonnet", "opus") or model.startswith("claude"):
             return "anthropic"
-        return "openai"
+        if model.startswith(("gpt", "o1")):
+            return "openai"
+        raise ConfigurationError(f"Unrecognized model: {model}")
 
     # Tool settings
     bash_timeout: int = 120  # seconds
@@ -70,10 +95,25 @@ class Settings(BaseSettings):
     }
 
 
-# Global settings instance
-settings = Settings()
-
-
+# Global settings instance with error handling
 def get_settings() -> Settings:
-    """Get the global settings instance."""
-    return settings
+    """
+    Get the global settings instance with robust initialization.
+    
+    Raises:
+        ConfigurationError: If settings cannot be loaded
+    """
+    try:
+        return Settings()
+    except Exception as e:
+        raise ConfigurationError(
+            "Failed to initialize application settings"
+        ) from e
+
+
+# Set global settings
+try:
+    settings = get_settings()
+except ConfigurationError as e:
+    print(f"Critical Configuration Error: {e}")
+    settings = None

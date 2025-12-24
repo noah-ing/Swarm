@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from functools import lru_cache
 
 
 def get_project_root() -> Path:
@@ -51,6 +52,19 @@ def truncate(text: str, max_length: int = 100, suffix: str = "...") -> str:
     return text[: max_length - len(suffix)] + suffix
 
 
+def reverse_string(text: str) -> str:
+    """
+    Reverse a string.
+
+    Args:
+        text: String to reverse
+
+    Returns:
+        Reversed string
+    """
+    return text[::-1]
+
+
 def count_tokens_estimate(text: str) -> int:
     """
     Rough estimate of token count.
@@ -67,22 +81,22 @@ def count_tokens_estimate(text: str) -> int:
 def count_code_lines(file_path: str | Path) -> int:
     """
     Count non-empty, non-comment lines in a Python file.
-    
+
     Args:
         file_path: Path to the Python file
-        
+
     Returns:
         Number of non-empty, non-comment lines
-        
+
     Raises:
         FileNotFoundError: If the file doesn't exist
         OSError: If there's an error reading the file
     """
     file_path = Path(file_path)
-    
+
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
-    
+
     count = 0
     with open(file_path, 'r', encoding='utf-8') as file:
         for line in file:
@@ -90,5 +104,32 @@ def count_code_lines(file_path: str | Path) -> int:
             # Skip empty lines and comment lines
             if stripped and not stripped.startswith('#'):
                 count += 1
-    
+
     return count
+
+
+@lru_cache(maxsize=None)
+def fibonacci(n: int) -> int:
+    """
+    Calculate the nth Fibonacci number using memoization.
+
+    Args:
+        n: The position in the Fibonacci sequence (0-indexed)
+
+    Returns:
+        The nth Fibonacci number
+
+    Raises:
+        ValueError: If n is negative
+    """
+    if n < 0:
+        raise ValueError("Fibonacci is not defined for negative numbers")
+
+    # Base cases
+    if n == 0:
+        return 0
+    if n == 1:
+        return 1
+
+    # Recursive case with memoization via lru_cache
+    return fibonacci(n - 1) + fibonacci(n - 2)
