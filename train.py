@@ -22,6 +22,7 @@ from memory import get_memory_store
 from knowledge import get_knowledge_store
 from goals import get_hierarchical_planner
 from background import get_background_learner, LearningMode
+from metalearner import get_metalearner
 
 
 # Benchmark tasks for training
@@ -123,6 +124,14 @@ def print_stats():
     print(f"   Insights extracted: {bg_stats['insights_extracted']}")
     status = "RUNNING" if bg_stats['is_running'] else "stopped"
     print(f"   Status: {status}")
+
+    # Meta-learner stats
+    meta = get_metalearner()
+    meta_stats = meta.get_stats()
+    print(f"\n Meta-Learning:")
+    print(f"   Experiments: {meta_stats['total_experiments']} ({meta_stats['successful_experiments']} improved)")
+    print(f"   Config changes: {meta_stats['config_changes']}")
+    print(f"   Efficiency snapshots: {meta_stats['efficiency_snapshots']}")
     print("="*60 + "\n")
 
 
@@ -366,6 +375,45 @@ Choose ONE specific, actionable task and execute it. Be precise."""
     print_stats()
 
 
+def run_optimize():
+    """Run meta-learning optimization cycle."""
+    print("META-LEARNING OPTIMIZATION")
+    print("="*60)
+    print("Analyzing learning efficiency and generating hypotheses...\n")
+
+    meta = get_metalearner()
+
+    # Analyze current efficiency
+    efficiency = meta.analyze_efficiency()
+    print(meta.format_efficiency(efficiency))
+
+    # Generate hypotheses
+    hypotheses = meta.generate_hypotheses()
+
+    if not hypotheses:
+        print("No optimization hypotheses generated.")
+        print("System is performing well or needs more data.\n")
+        print_stats()
+        return
+
+    print(f"\nGenerated {len(hypotheses)} hypotheses:\n")
+    for i, h in enumerate(hypotheses, 1):
+        print(f"{i}. {h.description}")
+        print(f"   Expected improvement: {h.expected_improvement:.0%}")
+        print(f"   Confidence: {h.confidence:.0%}")
+        print()
+
+    # Run optimization
+    print("Running experiments...")
+    experiments = meta.optimize(max_experiments=2)
+
+    print(f"\nCompleted {len(experiments)} experiments:")
+    for exp in experiments:
+        print(f"  - {exp.hypothesis.description}: {exp.result}")
+
+    print_stats()
+
+
 def run_daemon(duration_minutes: int = 60):
     """Run background learning daemon."""
     print(f"BACKGROUND LEARNING DAEMON")
@@ -399,7 +447,7 @@ def run_daemon(duration_minutes: int = 60):
 
 def main():
     parser = argparse.ArgumentParser(description="Swarm Training Loop")
-    parser.add_argument("mode", choices=["benchmark", "self-improve", "interactive", "autonomous", "daemon", "stats"],
+    parser.add_argument("mode", choices=["benchmark", "self-improve", "interactive", "autonomous", "daemon", "optimize", "stats"],
                        help="Training mode")
     parser.add_argument("--rounds", type=int, default=1, help="Number of rounds (benchmark mode)")
     parser.add_argument("--iterations", type=int, default=3, help="Number of iterations (self-improve mode)")
@@ -421,6 +469,8 @@ def main():
         run_autonomous(duration_minutes=args.duration, model=args.model)
     elif args.mode == "daemon":
         run_daemon(duration_minutes=args.duration)
+    elif args.mode == "optimize":
+        run_optimize()
 
 
 if __name__ == "__main__":

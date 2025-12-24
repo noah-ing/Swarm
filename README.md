@@ -108,6 +108,13 @@ Most AI agent frameworks execute tasks. Swarm **learns from every execution**:
 - **Self-Improvement**: Periodically improves Swarm's own code
 - **Exploration**: Discovers new patterns from codebases
 
+### Meta-Learning (`metalearner.py`)
+- **Learning Efficiency Analysis**: Tracks success rates, token usage, transfer rates
+- **Hypothesis Generation**: Identifies improvement opportunities automatically
+- **A/B Experiments**: Tests configuration changes with control/treatment
+- **Hyperparameter Tuning**: Optimizes mutation rates, thresholds, weights
+- **Self-Optimization**: The system that optimizes the optimization
+
 ## Installation
 
 ```bash
@@ -150,6 +157,9 @@ python3 train.py autonomous --duration 60
 
 # Background learning daemon (continuous improvement)
 python3 train.py daemon --duration 60
+
+# Meta-learning optimization (tunes its own parameters)
+python3 train.py optimize
 
 # Interactive training mode
 python3 train.py interactive
@@ -208,7 +218,8 @@ All learning is stored in SQLite databases:
 ├── rollback.db        # File snapshots for rollback
 ├── negotiation.db     # Multi-agent debate history
 ├── goals.db           # Hierarchical goal trees
-└── background.db      # Background learning sessions
+├── background.db      # Background learning sessions
+└── metalearner.db     # Meta-learning experiments & config
 ```
 
 Learning persists across sessions and accumulates over time.
@@ -267,10 +278,12 @@ Over time, prompts naturally evolve to be more effective.
 - [x] Multi-agent negotiation (critique, consensus, risk-based activation)
 - [x] Hierarchical goal decomposition (recursive planning, tree execution)
 - [x] Continuous background learning (daemon mode, skill practice, consolidation)
+- [x] Meta-learning (self-optimization, hypothesis testing, hyperparameter tuning)
 
 ### Research Directions
 - [ ] Multi-modal reasoning (code + diagrams + docs)
 - [ ] Federated learning across Swarm instances
+- [ ] Neural architecture search for agent topologies
 
 ## License
 
