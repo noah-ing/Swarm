@@ -122,6 +122,13 @@ Most AI agent frameworks execute tasks. Swarm **learns from every execution**:
 - **Performance Tracking**: Monitors and retires underperforming agents
 - **Generation Tracking**: Tracks lineage across agent evolution
 
+### Dashboard (`dashboard/`)
+- **Real-Time Visualization**: WebSocket-powered live event stream
+- **Agent Dialogue View**: See inter-agent messages and negotiations
+- **Thought Stream**: Monitor agent reasoning in real-time
+- **Task Execution**: Run tasks directly from the browser
+- **Stats Dashboard**: Track learning progress and success rates
+
 ## Installation
 
 ```bash
@@ -184,6 +191,22 @@ python3 train.py stats
 # See the full cognitive process
 python3 run_task.py "your task here" sonnet
 ```
+
+### Web Dashboard
+
+```bash
+# Start the real-time dashboard
+python3 -m uvicorn dashboard.server:app --port 8420
+
+# Open http://localhost:8420 in your browser
+```
+
+The dashboard provides:
+- **Live Activity Stream**: See agent thoughts, messages, and task progress in real-time
+- **Agent Dialogue**: Watch inter-agent communication and negotiations
+- **Thought Stream**: Monitor agent reasoning and meta-cognition
+- **Stats Dashboard**: Track learning progress, success rates, and mutations
+- **Task Execution**: Run tasks directly from the browser
 
 ## Learning Progress
 
@@ -291,6 +314,7 @@ Over time, prompts naturally evolve to be more effective.
 - [x] Continuous background learning (daemon mode, skill practice, consolidation)
 - [x] Meta-learning (self-optimization, hypothesis testing, hyperparameter tuning)
 - [x] Self-modifying architecture (dynamic agent creation, evolution, retirement)
+- [x] Real-time dashboard (WebSocket events, agent dialogue, thought streams)
 
 ### Research Directions
 - [ ] Multi-modal reasoning (code + diagrams + docs)

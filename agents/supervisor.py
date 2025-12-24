@@ -32,6 +32,13 @@ from rollback import get_rollback_manager, RollbackPlan
 from negotiation import get_negotiation_coordinator, NegotiationResult
 from agentfactory import get_agent_factory, AgentFactory, AgentBlueprint
 
+# Dashboard events (optional - only if dashboard is available)
+try:
+    from dashboard.events import get_event_bus, EventType
+    _event_bus = get_event_bus()
+except ImportError:
+    _event_bus = None
+
 
 @dataclass
 class SupervisorResult:
@@ -99,6 +106,19 @@ class Supervisor(BaseAgent):
         self.on_goal_progress: Callable[[int, int], None] | None = None
         self.on_agent_spawn: Callable[[AgentBlueprint], None] | None = None
 
+    def _emit_event(self, event_type, content: str = "", **kwargs):
+        """Emit an event to the dashboard if available."""
+        if _event_bus is None:
+            return
+        from dashboard.events import SwarmEvent
+        event = SwarmEvent(
+            type=event_type,
+            agent_name=kwargs.get("agent_name", "supervisor"),
+            content=content,
+            **{k: v for k, v in kwargs.items() if k != "agent_name"}
+        )
+        _event_bus.emit(event)
+
     def run(
         self,
         task: str,
@@ -124,6 +144,11 @@ class Supervisor(BaseAgent):
         """
         start_time = time.time()
         result = SupervisorResult(success=False, message="")
+        task_id = f"task_{int(start_time * 1000)}"
+
+        # Emit task start event
+        if _event_bus:
+            self._emit_event(EventType.TASK_START, task[:200], task_id=task_id)
 
         # Phase 1: Understand the codebase
         full_context = self._phase1_understand_codebase(task, context)
@@ -197,6 +222,17 @@ class Supervisor(BaseAgent):
             (output_tokens / 1_000_000) * costs["output"]
         )
 
+        # Emit task complete event
+        if _event_bus:
+            event_type = EventType.TASK_COMPLETE if result.success else EventType.TASK_ERROR
+            self._emit_event(
+                event_type,
+                result.message[:300] if result.message else "Task completed",
+                task_id=task_id,
+                tokens=result.tokens_used,
+                data={"success": result.success, "duration": result.duration_seconds},
+            )
+
         return result
 
     def _phase1_understand_codebase(self, task: str, context: str) -> str:
@@ -259,6 +295,14 @@ class Supervisor(BaseAgent):
             if self.on_thinking:
                 self.on_thinking(thinking)
 
+            # Emit thought event for dashboard
+            if _event_bus and thinking:
+                self._emit_event(
+                    EventType.THOUGHT,
+                    f"Understanding: {thinking.understanding}\n\nStrategy: {thinking.strategy_reasoning}",
+                    agent_name="thinker",
+                )
+
             # Check if we should ask user
             if allow_ask:
                 should_ask, reason = thinker.should_ask_user(thinking)
@@ -305,6 +349,13 @@ class Supervisor(BaseAgent):
 
         if self.on_strategy:
             self.on_strategy(f"Strategy: {strategy}, Model: {recommended_model}")
+
+        # Emit strategy event
+        if _event_bus:
+            self._emit_event(
+                EventType.STRATEGY,
+                f"Selected strategy: {strategy} with model: {recommended_model}",
+            )
 
         return strategy, recommended_model
 
@@ -420,6 +471,14 @@ class Supervisor(BaseAgent):
         """Phase 5 (negotiation): Use multi-agent debate for high-risk tasks."""
         proposer_count = self.negotiation.get_proposer_count(effect_prediction)
 
+        # Emit negotiation start
+        if _event_bus:
+            self._emit_event(
+                EventType.MESSAGE,
+                f"Starting multi-agent negotiation with {proposer_count} proposers",
+                agent_name="negotiator",
+            )
+
         negotiation_result = self.negotiation.negotiate(
             task=task,
             context=context,
@@ -430,6 +489,24 @@ class Supervisor(BaseAgent):
 
         if self.on_negotiation:
             self.on_negotiation(negotiation_result)
+
+        # Emit negotiation results
+        if _event_bus and negotiation_result:
+            # Emit proposals
+            for i, proposal in enumerate(negotiation_result.proposals[:3]):
+                self._emit_event(
+                    EventType.PROPOSAL,
+                    proposal[:200] if proposal else f"Proposal {i+1}",
+                    agent_name=f"proposer_{i+1}",
+                )
+
+            # Emit consensus
+            self._emit_event(
+                EventType.CONSENSUS,
+                f"Consensus reached: {negotiation_result.final_solution[:200]}",
+                agent_name="negotiator",
+                data={"confidence": negotiation_result.confidence},
+            )
 
         # Use the negotiated solution as the result
         result.success = negotiation_result.success
@@ -504,6 +581,15 @@ class Supervisor(BaseAgent):
         )
 
         result.learnings = reflection.insights
+
+        # Emit reflection event
+        if _event_bus and reflection.insights:
+            self._emit_event(
+                EventType.REFLECTION,
+                f"Insights: {'; '.join(reflection.insights[:3])}",
+                agent_name="brain",
+                data={"insights": reflection.insights, "confidence": reflection.confidence},
+            )
 
         if self.on_learning and reflection.insights:
             for insight in reflection.insights:
