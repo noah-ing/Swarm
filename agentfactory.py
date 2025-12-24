@@ -116,6 +116,10 @@ class {class_name}(BaseAgent):
         super().__init__(model=model)
         self.system_prompt = """{system_prompt}"""
 
+    def run(self, task: str, context: str = "") -> dict:
+        """Run analysis task."""
+        return self.analyze(task, context)
+
     def analyze(self, content: str, focus: str = "") -> dict:
         """Analyze content with optional focus area."""
         prompt = f"Analyze the following:\\n\\n{{content}}"
@@ -130,6 +134,7 @@ class {class_name}(BaseAgent):
         response = self.chat(messages=messages)
 
         return {{
+            "result": response.content,
             "analysis": response.content,
             "tokens": response.input_tokens + response.output_tokens,
         }}
@@ -147,6 +152,10 @@ class {class_name}(BaseAgent):
     def __init__(self, model: str = "sonnet"):
         super().__init__(model=model)
         self.system_prompt = """{system_prompt}"""
+
+    def run(self, task: str, context: str = "") -> dict:
+        """Run validation task."""
+        return self.validate(task, context.split(",") if context else None)
 
     def validate(self, content: str, criteria: list[str] = None) -> dict:
         """Validate content against criteria."""
@@ -166,6 +175,7 @@ class {class_name}(BaseAgent):
 
         return {{
             "valid": is_valid,
+            "result": response.content,
             "feedback": response.content,
             "tokens": response.input_tokens + response.output_tokens,
         }}
@@ -184,6 +194,10 @@ class {class_name}(BaseAgent):
         super().__init__(model=model)
         self.system_prompt = """{system_prompt}"""
 
+    def run(self, task: str, context: str = "") -> dict:
+        """Run transformation task."""
+        return self.transform(task, context or "requested format")
+
     def transform(self, input_content: str, target_format: str) -> dict:
         """Transform content to target format."""
         prompt = f"Transform the following to {{target_format}}:\\n\\n{{input_content}}"
@@ -196,6 +210,7 @@ class {class_name}(BaseAgent):
         response = self.chat(messages=messages)
 
         return {{
+            "result": response.content,
             "transformed": response.content,
             "tokens": response.input_tokens + response.output_tokens,
         }}
@@ -215,6 +230,10 @@ class {class_name}(BaseAgent):
         self.system_prompt = """{system_prompt}"""
         self.specialty = "{specialty}"
 
+    def run(self, task: str, context: str = "") -> dict:
+        """Run specialist consultation."""
+        return self.consult(task, context)
+
     def consult(self, question: str, context: str = "") -> dict:
         """Provide specialist consultation."""
         prompt = f"As a {{self.specialty}} specialist:\\n\\n{{question}}"
@@ -229,6 +248,7 @@ class {class_name}(BaseAgent):
         response = self.chat(messages=messages)
 
         return {{
+            "result": response.content,
             "advice": response.content,
             "tokens": response.input_tokens + response.output_tokens,
         }}
