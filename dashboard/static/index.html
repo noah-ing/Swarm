@@ -3,922 +3,441 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Swarm Dashboard</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <title>Swarm</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --bg-dark: #0a0a0f;
-            --bg-card: #12121a;
-            --bg-hover: #1a1a25;
-            --border: #2a2a3a;
-            --text: #e0e0e0;
-            --text-dim: #888;
-            --accent: #6366f1;
-            --accent-dim: #4f46e5;
-            --success: #22c55e;
-            --error: #ef4444;
-            --warning: #f59e0b;
-            --info: #3b82f6;
+            --bg: #1a1a1a;
+            --bg2: #222;
+            --bg3: #2a2a2a;
+            --border: #333;
+            --text: #ccc;
+            --dim: #666;
+            --accent: #7a7;
+            --red: #a66;
+            --yellow: #aa7;
         }
-
         body {
-            font-family: 'SF Mono', 'Fira Code', monospace;
-            background: var(--bg-dark);
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            background: var(--bg);
             color: var(--text);
-            min-height: 100vh;
-            overflow-x: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-
         .header {
-            background: linear-gradient(135deg, var(--accent-dim), #7c3aed);
-            padding: 1rem 2rem;
+            background: var(--bg2);
+            padding: 8px 16px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 16px;
             border-bottom: 1px solid var(--border);
         }
-
         .header h1 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .header .logo {
-            font-size: 1.8rem;
-        }
-
-        .connection-status {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.85rem;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--error);
-        }
-
-        .status-dot.connected {
-            background: var(--success);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .task-input-container {
-            display: flex;
-            gap: 0.5rem;
-            flex: 1;
-            max-width: 600px;
-            margin: 0 2rem;
-        }
-
-        .task-input {
-            flex: 1;
-            padding: 0.5rem 1rem;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            background: rgba(0,0,0,0.3);
-            color: var(--text);
-            font-family: inherit;
-            font-size: 0.9rem;
-        }
-
-        .task-input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-
-        .task-input::placeholder {
-            color: var(--text-dim);
-        }
-
-        .run-btn {
-            padding: 0.5rem 1.5rem;
-            background: var(--success);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: inherit;
-            transition: all 0.2s;
-        }
-
-        .run-btn:hover {
-            background: #16a34a;
-        }
-
-        .run-btn:disabled {
-            background: var(--text-dim);
-            cursor: not-allowed;
-        }
-
-        .dashboard {
-            display: grid;
-            grid-template-columns: 1fr 350px;
-            grid-template-rows: auto 1fr;
-            gap: 1rem;
-            padding: 1rem;
-            height: calc(100vh - 60px);
-        }
-
-        .stats-bar {
-            grid-column: 1 / -1;
-            display: flex;
-            gap: 1rem;
-            overflow-x: auto;
-        }
-
-        .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem 1.5rem;
-            min-width: 150px;
-            flex-shrink: 0;
-        }
-
-        .stat-card .label {
-            font-size: 0.75rem;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            margin-bottom: 0.25rem;
-        }
-
-        .stat-card .value {
-            font-size: 1.5rem;
-            font-weight: 600;
+            font-size: 14px;
+            font-weight: normal;
             color: var(--accent);
         }
-
-        .main-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            overflow: hidden;
-        }
-
-        .panel {
-            background: var(--bg-card);
+        .task-input {
+            flex: 1;
+            max-width: 500px;
+            padding: 6px 10px;
+            background: var(--bg);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 12px;
+        }
+        .task-input:focus { outline: none; border-color: var(--accent); }
+        .run-btn {
+            padding: 6px 16px;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            color: var(--text);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+        }
+        .run-btn:hover { background: var(--border); }
+        .run-btn:disabled { color: var(--dim); cursor: wait; }
+        .status {
+            margin-left: auto;
+            color: var(--dim);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--red);
+        }
+        .status-dot.connected { background: var(--accent); }
+        .main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 280px;
+            grid-template-rows: auto 1fr;
             overflow: hidden;
+        }
+        .stats {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 24px;
+            padding: 12px 16px;
+            background: var(--bg2);
+            border-bottom: 1px solid var(--border);
+        }
+        .stat { color: var(--dim); }
+        .stat span { color: var(--text); margin-left: 6px; }
+        .panels {
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
-
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-bottom: 1px solid var(--border);
+            overflow: hidden;
+        }
+        .panel:last-child { border-bottom: none; }
         .panel-header {
-            padding: 0.75rem 1rem;
+            padding: 8px 12px;
+            background: var(--bg2);
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            background: var(--bg-hover);
+            gap: 12px;
         }
-
         .panel-header h2 {
-            font-size: 0.9rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+            font-size: 11px;
+            font-weight: normal;
+            text-transform: uppercase;
+            color: var(--dim);
+            letter-spacing: 1px;
         }
-
+        .tabs { display: flex; gap: 4px; margin-left: auto; }
+        .tab {
+            padding: 2px 8px;
+            background: none;
+            border: 1px solid transparent;
+            color: var(--dim);
+            font-family: inherit;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .tab:hover { color: var(--text); }
+        .tab.active { border-color: var(--border); color: var(--text); }
         .panel-content {
             flex: 1;
             overflow-y: auto;
-            padding: 0.5rem;
+            padding: 8px;
         }
-
-        /* Event Stream */
-        .event-stream {
-            flex: 1;
+        .sidebar {
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
-
-        .event-item {
-            padding: 0.75rem;
-            border-radius: 6px;
-            margin-bottom: 0.5rem;
-            border-left: 3px solid var(--border);
-            background: var(--bg-dark);
-            animation: slideIn 0.3s ease;
+        /* Events */
+        .event {
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            border-left: 2px solid var(--border);
+            background: var(--bg2);
         }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-10px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        .event-item.thought { border-left-color: var(--info); }
-        .event-item.message { border-left-color: var(--accent); }
-        .event-item.task_start { border-left-color: var(--warning); }
-        .event-item.task_complete { border-left-color: var(--success); }
-        .event-item.task_error { border-left-color: var(--error); }
-        .event-item.reflection { border-left-color: #a855f7; }
-        .event-item.critique { border-left-color: #ec4899; }
-
+        .event.thought { border-left-color: #68a; }
+        .event.message { border-left-color: #86a; }
+        .event.task_start { border-left-color: var(--yellow); }
+        .event.task_complete { border-left-color: var(--accent); }
+        .event.task_error { border-left-color: var(--red); }
+        .event.reflection { border-left-color: #a6a; }
         .event-header {
             display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.25rem;
+            gap: 8px;
+            margin-bottom: 2px;
+            color: var(--dim);
+            font-size: 10px;
         }
-
-        .event-type {
-            font-size: 0.7rem;
-            padding: 0.15rem 0.4rem;
-            border-radius: 3px;
-            background: var(--bg-hover);
-            color: var(--text-dim);
-            text-transform: uppercase;
-        }
-
-        .event-agent {
-            font-size: 0.8rem;
-            color: var(--accent);
-            font-weight: 500;
-        }
-
-        .event-time {
-            font-size: 0.7rem;
-            color: var(--text-dim);
-            margin-left: auto;
-        }
-
+        .event-type { text-transform: uppercase; }
+        .event-agent { color: var(--accent); }
+        .event-time { margin-left: auto; }
         .event-content {
-            font-size: 0.85rem;
-            line-height: 1.5;
             color: var(--text);
             white-space: pre-wrap;
             word-break: break-word;
+            line-height: 1.4;
         }
-
-        .event-arrow {
-            color: var(--text-dim);
+        /* Agents */
+        .agent {
+            padding: 8px;
+            margin-bottom: 4px;
+            background: var(--bg2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-
-        /* Thought Stream Panel */
-        .thought-bubble {
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
-            border: 1px solid rgba(99, 102, 241, 0.3);
-            border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 0.5rem;
+        .agent-icon {
+            width: 24px;
+            height: 24px;
+            background: var(--bg3);
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: var(--dim);
         }
-
-        .thought-bubble .agent {
-            font-size: 0.75rem;
-            color: var(--accent);
-            margin-bottom: 0.5rem;
-            font-weight: 600;
+        .agent-name { flex: 1; }
+        .agent-meta { color: var(--dim); font-size: 10px; }
+        .agent-status {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--dim);
         }
-
-        .thought-bubble .content {
-            font-size: 0.85rem;
-            line-height: 1.6;
+        .agent-status.active { background: var(--accent); }
+        .agent-status.testing { background: var(--yellow); }
+        /* Thoughts */
+        .thought-item {
+            padding: 8px;
+            margin-bottom: 4px;
+            background: var(--bg2);
+            border-left: 2px solid #68a;
+        }
+        .thought-agent {
+            font-size: 10px;
+            color: var(--dim);
+            margin-bottom: 4px;
+        }
+        .thought-content {
             font-style: italic;
             color: var(--text);
+            line-height: 1.4;
         }
-
-        /* Messages Panel */
-        .message-item {
-            display: flex;
-            gap: 0.75rem;
-            padding: 0.75rem;
-            margin-bottom: 0.5rem;
+        /* Messages */
+        .msg {
+            padding: 8px;
+            margin-bottom: 4px;
+            background: var(--bg2);
         }
-
-        .message-item.outgoing {
-            flex-direction: row-reverse;
-        }
-
-        .message-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--accent);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.8rem;
-            font-weight: 600;
-            flex-shrink: 0;
-        }
-
-        .message-bubble {
-            background: var(--bg-hover);
-            border-radius: 12px;
-            padding: 0.75rem 1rem;
-            max-width: 80%;
-        }
-
-        .message-item.outgoing .message-bubble {
-            background: var(--accent-dim);
-        }
-
-        .message-from {
-            font-size: 0.7rem;
-            color: var(--text-dim);
-            margin-bottom: 0.25rem;
-        }
-
-        .message-text {
-            font-size: 0.85rem;
-            line-height: 1.5;
-        }
-
-        /* Agent Graph */
-        .agent-graph {
-            height: 100%;
-        }
-
-        .agent-graph svg {
-            width: 100%;
-            height: 100%;
-        }
-
-        .agent-node {
-            cursor: pointer;
-        }
-
-        .agent-node circle {
-            stroke: var(--border);
-            stroke-width: 2;
-            transition: all 0.3s ease;
-        }
-
-        .agent-node:hover circle {
-            stroke: var(--accent);
-            stroke-width: 3;
-        }
-
-        .agent-node text {
+        .msg-header {
             font-size: 10px;
-            fill: var(--text);
-            text-anchor: middle;
+            color: var(--dim);
+            margin-bottom: 4px;
         }
-
-        .agent-link {
-            stroke: var(--border);
-            stroke-opacity: 0.6;
-        }
-
-        /* Sidebar */
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            overflow: hidden;
-        }
-
-        .agents-list {
-            flex: 1;
-        }
-
-        .agent-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.75rem;
-            border-radius: 6px;
-            margin-bottom: 0.5rem;
-            background: var(--bg-dark);
-            transition: background 0.2s;
-        }
-
-        .agent-item:hover {
-            background: var(--bg-hover);
-        }
-
-        .agent-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-        }
-
-        .agent-icon.executor { background: rgba(34, 197, 94, 0.2); }
-        .agent-icon.analyzer { background: rgba(59, 130, 246, 0.2); }
-        .agent-icon.validator { background: rgba(245, 158, 11, 0.2); }
-        .agent-icon.transformer { background: rgba(168, 85, 247, 0.2); }
-        .agent-icon.specialist { background: rgba(236, 72, 153, 0.2); }
-
-        .agent-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .agent-name {
-            font-size: 0.85rem;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .agent-meta {
-            font-size: 0.7rem;
-            color: var(--text-dim);
-        }
-
-        .agent-status {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--text-dim);
-        }
-
-        .agent-status.active { background: var(--success); }
-        .agent-status.testing { background: var(--warning); }
-
-        /* Tabs */
-        .tabs {
-            display: flex;
-            gap: 0.25rem;
-            padding: 0.25rem;
-            background: var(--bg-dark);
-            border-radius: 6px;
-        }
-
-        .tab {
-            flex: 1;
-            padding: 0.5rem;
-            border: none;
-            background: transparent;
-            color: var(--text-dim);
-            font-size: 0.75rem;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-
-        .tab:hover {
-            color: var(--text);
-        }
-
-        .tab.active {
-            background: var(--accent);
-            color: white;
-        }
-
-        /* Empty state */
-        .empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 200px;
-            color: var(--text-dim);
+        .msg-content { line-height: 1.4; }
+        .empty {
+            color: var(--dim);
             text-align: center;
-        }
-
-        .empty-state .icon {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
+            padding: 40px;
         }
     </style>
 </head>
 <body>
     <header class="header">
-        <h1>
-            <span class="logo">🐝</span>
-            Swarm Dashboard
-        </h1>
-        <div class="task-input-container">
-            <input type="text" class="task-input" id="taskInput"
-                   placeholder="Enter a task for Swarm to execute..."
-                   onkeydown="if(event.key==='Enter') runTask()">
-            <button class="run-btn" id="runBtn" onclick="runTask()">Run</button>
-        </div>
-        <div class="connection-status">
-            <span class="status-dot" id="connectionStatus"></span>
-            <span id="connectionText">Connecting...</span>
+        <h1>swarm</h1>
+        <input type="text" class="task-input" id="taskInput" placeholder="enter task..." onkeydown="if(event.key==='Enter')runTask()">
+        <button class="run-btn" id="runBtn" onclick="runTask()">run</button>
+        <div class="status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">connecting</span>
         </div>
     </header>
-
-    <main class="dashboard">
-        <div class="stats-bar" id="statsBar">
-            <div class="stat-card">
-                <div class="label">Active Agents</div>
-                <div class="value" id="statAgents">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">Tasks Run</div>
-                <div class="value" id="statTasks">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">Reflections</div>
-                <div class="value" id="statReflections">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">Success Rate</div>
-                <div class="value" id="statSuccess">--%</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">Mutations</div>
-                <div class="value" id="statMutations">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">Max Generation</div>
-                <div class="value" id="statGeneration">0</div>
-            </div>
+    <main class="main">
+        <div class="stats">
+            <div class="stat">agents<span id="sAgents">0</span></div>
+            <div class="stat">tasks<span id="sTasks">0</span></div>
+            <div class="stat">reflections<span id="sReflections">0</span></div>
+            <div class="stat">success<span id="sSuccess">--%</span></div>
+            <div class="stat">mutations<span id="sMutations">0</span></div>
+            <div class="stat">gen<span id="sGen">0</span></div>
         </div>
-
-        <div class="main-panel">
-            <div class="panel event-stream" style="flex: 2;">
+        <div class="panels">
+            <div class="panel" style="flex:2">
                 <div class="panel-header">
-                    <h2>📡 Live Activity</h2>
+                    <h2>activity</h2>
                     <div class="tabs">
-                        <button class="tab active" data-view="all">All</button>
-                        <button class="tab" data-view="thoughts">Thoughts</button>
-                        <button class="tab" data-view="messages">Messages</button>
-                        <button class="tab" data-view="tasks">Tasks</button>
+                        <button class="tab active" data-view="all">all</button>
+                        <button class="tab" data-view="thoughts">thoughts</button>
+                        <button class="tab" data-view="messages">messages</button>
+                        <button class="tab" data-view="tasks">tasks</button>
                     </div>
                 </div>
-                <div class="panel-content" id="eventStream">
-                    <div class="empty-state">
-                        <div class="icon">📭</div>
-                        <div>Waiting for events...</div>
-                        <div style="font-size: 0.75rem; margin-top: 0.5rem;">Run a task to see activity</div>
-                    </div>
-                </div>
+                <div class="panel-content" id="eventStream"><div class="empty">waiting for events...</div></div>
             </div>
-
-            <div class="panel" style="flex: 1;">
-                <div class="panel-header">
-                    <h2>💭 Agent Dialogue</h2>
-                </div>
-                <div class="panel-content" id="dialogueStream">
-                    <div class="empty-state">
-                        <div class="icon">💬</div>
-                        <div>No dialogue yet</div>
-                    </div>
-                </div>
+            <div class="panel">
+                <div class="panel-header"><h2>dialogue</h2></div>
+                <div class="panel-content" id="dialogue"><div class="empty">no dialogue</div></div>
             </div>
         </div>
-
         <div class="sidebar">
-            <div class="panel agents-list">
-                <div class="panel-header">
-                    <h2>🤖 Agents</h2>
-                </div>
-                <div class="panel-content" id="agentsList">
-                    <div class="empty-state">
-                        <div class="icon">🤖</div>
-                        <div>No agents yet</div>
-                    </div>
-                </div>
+            <div class="panel">
+                <div class="panel-header"><h2>agents</h2></div>
+                <div class="panel-content" id="agents"><div class="empty">no agents</div></div>
             </div>
-
-            <div class="panel" style="flex: 1;">
-                <div class="panel-header">
-                    <h2>🧠 Thought Stream</h2>
-                </div>
-                <div class="panel-content" id="thoughtStream">
-                    <div class="empty-state">
-                        <div class="icon">💭</div>
-                        <div>No thoughts yet</div>
-                    </div>
-                </div>
+            <div class="panel">
+                <div class="panel-header"><h2>thoughts</h2></div>
+                <div class="panel-content" id="thoughts"><div class="empty">no thoughts</div></div>
             </div>
         </div>
     </main>
-
     <script>
-        // State
-        let ws = null;
-        let events = [];
-        let agents = {};
-        let currentView = 'all';
+        let ws, events = [], view = 'all';
+        const roleAbbr = {executor:'EX',analyzer:'AN',validator:'VA',transformer:'TR',specialist:'SP'};
 
-        // Icons for event types
-        const eventIcons = {
-            thought: '💭',
-            reasoning: '🧠',
-            message: '💬',
-            critique: '🔍',
-            proposal: '📝',
-            consensus: '🤝',
-            task_start: '▶️',
-            task_progress: '⏳',
-            task_complete: '✅',
-            task_error: '❌',
-            reflection: '🪞',
-            insight: '💡',
-            mutation: '🧬',
-            agent_spawn: '🐣',
-            agent_retire: '💤',
-            goal_created: '🎯',
-            goal_progress: '📊',
-            goal_complete: '🏆',
-        };
-
-        // Role icons
-        const roleIcons = {
-            executor: '⚡',
-            analyzer: '🔬',
-            validator: '✅',
-            transformer: '🔄',
-            specialist: '🎯',
-        };
-
-        // Connect WebSocket
         function connect() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-
+            ws = new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`);
             ws.onopen = () => {
-                document.getElementById('connectionStatus').classList.add('connected');
-                document.getElementById('connectionText').textContent = 'Connected';
+                document.getElementById('statusDot').classList.add('connected');
+                document.getElementById('statusText').textContent = 'connected';
             };
-
             ws.onclose = () => {
-                document.getElementById('connectionStatus').classList.remove('connected');
-                document.getElementById('connectionText').textContent = 'Disconnected';
+                document.getElementById('statusDot').classList.remove('connected');
+                document.getElementById('statusText').textContent = 'disconnected';
                 setTimeout(connect, 3000);
             };
-
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-
-                if (data.type === 'initial_state') {
-                    // Load initial state
-                    data.recent_events.forEach(e => addEvent(e, false));
-                    Object.assign(agents, data.active_agents);
-                    renderAgents();
-                } else if (data.type === 'pong') {
-                    // Heartbeat response
-                } else {
-                    // New event
-                    addEvent(data);
+            ws.onmessage = (e) => {
+                const d = JSON.parse(e.data);
+                if (d.type === 'initial_state') {
+                    d.recent_events.forEach(ev => addEvent(ev, false));
+                } else if (d.type !== 'pong') {
+                    addEvent(d);
                 }
             };
         }
 
-        // Add event to stream
-        function addEvent(event, animate = true) {
-            events.unshift(event);
+        function addEvent(e, render = true) {
+            events.unshift(e);
             if (events.length > 200) events.pop();
-
-            renderEvents();
-
-            // Add to thought stream if it's a thought
-            if (['thought', 'reasoning'].includes(event.type)) {
-                addThought(event);
-            }
-
-            // Add to dialogue if it's a message
-            if (['message', 'critique', 'proposal', 'consensus'].includes(event.type)) {
-                addDialogue(event);
-            }
+            if (render) renderEvents();
+            if (['thought','reasoning'].includes(e.type)) addThought(e);
+            if (['message','critique','proposal','consensus'].includes(e.type)) addDialogue(e);
         }
 
-        // Render events
         function renderEvents() {
-            const container = document.getElementById('eventStream');
-            const filtered = events.filter(e => {
-                if (currentView === 'all') return true;
-                if (currentView === 'thoughts') return ['thought', 'reasoning', 'reflection'].includes(e.type);
-                if (currentView === 'messages') return ['message', 'critique', 'proposal', 'consensus'].includes(e.type);
-                if (currentView === 'tasks') return ['task_start', 'task_complete', 'task_error', 'task_progress'].includes(e.type);
+            const c = document.getElementById('eventStream');
+            const f = events.filter(e => {
+                if (view === 'all') return true;
+                if (view === 'thoughts') return ['thought','reasoning','reflection'].includes(e.type);
+                if (view === 'messages') return ['message','critique','proposal','consensus'].includes(e.type);
+                if (view === 'tasks') return ['task_start','task_complete','task_error'].includes(e.type);
                 return true;
             });
-
-            if (filtered.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="icon">📭</div>
-                        <div>No events yet</div>
+            if (!f.length) { c.innerHTML = '<div class="empty">no events</div>'; return; }
+            c.innerHTML = f.slice(0,50).map(e => {
+                const t = new Date(e.timestamp*1000).toLocaleTimeString();
+                let content = (e.content||'').slice(0,300);
+                if ((e.content||'').length > 300) content += '...';
+                return `<div class="event ${e.type}">
+                    <div class="event-header">
+                        <span class="event-type">${e.type.replace('_',' ')}</span>
+                        ${e.agent_name?`<span class="event-agent">${e.agent_name}</span>`:''}
+                        ${e.target_agent_name?`<span>-></span><span class="event-agent">${e.target_agent_name}</span>`:''}
+                        <span class="event-time">${t}</span>
                     </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = filtered.slice(0, 50).map(e => {
-                const time = new Date(e.timestamp * 1000).toLocaleTimeString();
-                const icon = eventIcons[e.type] || '📌';
-
-                let content = e.content || '';
-                if (content.length > 300) content = content.slice(0, 300) + '...';
-
-                let agentInfo = '';
-                if (e.agent_name) {
-                    agentInfo = `<span class="event-agent">${e.agent_name}</span>`;
-                    if (e.target_agent_name) {
-                        agentInfo += `<span class="event-arrow"> → </span><span class="event-agent">${e.target_agent_name}</span>`;
-                    }
-                }
-
-                return `
-                    <div class="event-item ${e.type}">
-                        <div class="event-header">
-                            <span class="event-type">${icon} ${e.type.replace('_', ' ')}</span>
-                            ${agentInfo}
-                            <span class="event-time">${time}</span>
-                        </div>
-                        <div class="event-content">${escapeHtml(content)}</div>
-                    </div>
-                `;
+                    <div class="event-content">${esc(content)}</div>
+                </div>`;
             }).join('');
         }
 
-        // Add thought to thought stream
-        function addThought(event) {
-            const container = document.getElementById('thoughtStream');
-
-            // Remove empty state
-            const empty = container.querySelector('.empty-state');
-            if (empty) empty.remove();
-
-            const bubble = document.createElement('div');
-            bubble.className = 'thought-bubble';
-            bubble.innerHTML = `
-                <div class="agent">${event.agent_name || 'Agent'}</div>
-                <div class="content">"${escapeHtml(event.content.slice(0, 200))}${event.content.length > 200 ? '...' : ''}"</div>
-            `;
-
-            container.insertBefore(bubble, container.firstChild);
-
-            // Keep only last 10
-            while (container.children.length > 10) {
-                container.removeChild(container.lastChild);
-            }
+        function addThought(e) {
+            const c = document.getElementById('thoughts');
+            if (c.querySelector('.empty')) c.innerHTML = '';
+            const d = document.createElement('div');
+            d.className = 'thought-item';
+            d.innerHTML = `<div class="thought-agent">${e.agent_name||'agent'}</div><div class="thought-content">"${esc((e.content||'').slice(0,200))}"</div>`;
+            c.insertBefore(d, c.firstChild);
+            while (c.children.length > 10) c.removeChild(c.lastChild);
         }
 
-        // Add dialogue
-        function addDialogue(event) {
-            const container = document.getElementById('dialogueStream');
-
-            // Remove empty state
-            const empty = container.querySelector('.empty-state');
-            if (empty) empty.remove();
-
-            const initials = (event.agent_name || 'A').slice(0, 2).toUpperCase();
-            const isOutgoing = event.target_agent_name;
-
-            const message = document.createElement('div');
-            message.className = `message-item ${isOutgoing ? 'outgoing' : ''}`;
-            message.innerHTML = `
-                <div class="message-avatar">${initials}</div>
-                <div class="message-bubble">
-                    <div class="message-from">
-                        ${event.agent_name}${event.target_agent_name ? ' → ' + event.target_agent_name : ''}
-                    </div>
-                    <div class="message-text">${escapeHtml(event.content.slice(0, 300))}${event.content.length > 300 ? '...' : ''}</div>
-                </div>
-            `;
-
-            container.insertBefore(message, container.firstChild);
-
-            // Keep only last 20
-            while (container.children.length > 20) {
-                container.removeChild(container.lastChild);
-            }
+        function addDialogue(e) {
+            const c = document.getElementById('dialogue');
+            if (c.querySelector('.empty')) c.innerHTML = '';
+            const d = document.createElement('div');
+            d.className = 'msg';
+            d.innerHTML = `<div class="msg-header">${e.agent_name||''}${e.target_agent_name?' -> '+e.target_agent_name:''}</div><div class="msg-content">${esc((e.content||'').slice(0,200))}</div>`;
+            c.insertBefore(d, c.firstChild);
+            while (c.children.length > 20) c.removeChild(c.lastChild);
         }
 
-        // Render agents list
-        function renderAgents() {
-            const container = document.getElementById('agentsList');
-
-            fetch('/api/agents')
-                .then(r => r.json())
-                .then(data => {
-                    if (!data.agents || data.agents.length === 0) {
-                        container.innerHTML = `
-                            <div class="empty-state">
-                                <div class="icon">🤖</div>
-                                <div>No agents yet</div>
-                            </div>
-                        `;
-                        return;
-                    }
-
-                    container.innerHTML = data.agents.map(agent => {
-                        const icon = roleIcons[agent.role] || '🤖';
-                        const total = agent.tasks_completed + agent.tasks_failed;
-                        const rate = total > 0 ? Math.round(agent.tasks_completed / total * 100) : 0;
-
-                        return `
-                            <div class="agent-item">
-                                <div class="agent-icon ${agent.role}">${icon}</div>
-                                <div class="agent-info">
-                                    <div class="agent-name">${agent.name}</div>
-                                    <div class="agent-meta">Gen ${agent.generation} · ${total} tasks · ${rate}%</div>
-                                </div>
-                                <div class="agent-status ${agent.status}"></div>
-                            </div>
-                        `;
-                    }).join('');
-                });
-        }
-
-        // Load stats
-        function loadStats() {
-            fetch('/api/stats')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.error) return;
-
-                    const af = data.agent_factory || {};
-                    const brain = data.brain || {};
-                    const evolution = data.evolution || {};
-
-                    document.getElementById('statAgents').textContent = af.active_agents || 0;
-                    document.getElementById('statTasks').textContent = af.total_tasks || 0;
-                    document.getElementById('statReflections').textContent = brain.total_reflections || 0;
-                    document.getElementById('statSuccess').textContent =
-                        (brain.success_rate !== undefined ? Math.round(brain.success_rate * 100) : '--') + '%';
-                    document.getElementById('statMutations').textContent = evolution.total_mutations || 0;
-                    document.getElementById('statGeneration').textContent = af.max_generation || 0;
-                });
-        }
-
-        // Tab switching
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                currentView = tab.dataset.view;
-                renderEvents();
+        function loadAgents() {
+            fetch('/api/agents').then(r=>r.json()).then(d => {
+                const c = document.getElementById('agents');
+                if (!d.agents||!d.agents.length) { c.innerHTML = '<div class="empty">no agents</div>'; return; }
+                c.innerHTML = d.agents.map(a => {
+                    const total = a.tasks_completed + a.tasks_failed;
+                    const rate = total ? Math.round(a.tasks_completed/total*100) : 0;
+                    return `<div class="agent">
+                        <div class="agent-icon">${roleAbbr[a.role]||'AG'}</div>
+                        <div class="agent-name">${a.name}</div>
+                        <div class="agent-meta">g${a.generation} ${total}t ${rate}%</div>
+                        <div class="agent-status ${a.status}"></div>
+                    </div>`;
+                }).join('');
             });
-        });
-
-        // Utility
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
 
-        // Run a task
+        function loadStats() {
+            fetch('/api/stats').then(r=>r.json()).then(d => {
+                if (d.error) return;
+                const af = d.agent_factory||{}, br = d.brain||{}, ev = d.evolution||{};
+                document.getElementById('sAgents').textContent = af.active_agents||0;
+                document.getElementById('sTasks').textContent = af.total_tasks||0;
+                document.getElementById('sReflections').textContent = br.total_reflections||0;
+                document.getElementById('sSuccess').textContent = (br.success_rate!==undefined?Math.round(br.success_rate*100):'--')+'%';
+                document.getElementById('sMutations').textContent = ev.total_mutations||0;
+                document.getElementById('sGen').textContent = af.max_generation||0;
+            });
+        }
+
         async function runTask() {
             const input = document.getElementById('taskInput');
             const btn = document.getElementById('runBtn');
             const task = input.value.trim();
-
             if (!task) return;
-
-            btn.disabled = true;
-            btn.textContent = 'Running...';
-
+            btn.disabled = true; btn.textContent = 'running...';
             try {
-                const response = await fetch('/api/run', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ task }),
-                });
-                const result = await response.json();
-
-                if (result.error) {
-                    alert('Error: ' + result.error);
-                } else {
-                    // Task completed - events should have been captured
-                    input.value = '';
-                    loadStats();
-                    renderAgents();
-                }
-            } catch (error) {
-                alert('Error: ' + error.message);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Run';
-            }
+                const r = await fetch('/api/run', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task})});
+                const d = await r.json();
+                if (d.error) alert(d.error);
+                else { input.value = ''; loadStats(); loadAgents(); }
+            } catch(e) { alert(e.message); }
+            btn.disabled = false; btn.textContent = 'run';
         }
 
-        // Initialize
+        document.querySelectorAll('.tab').forEach(t => {
+            t.onclick = () => {
+                document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+                view = t.dataset.view;
+                renderEvents();
+            };
+        });
+
+        function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+        function pollHistory() {
+            fetch('/api/history?limit=50').then(r=>r.json()).then(d => {
+                if (d.events && d.events.length) {
+                    const newEvents = d.events.filter(e => !events.find(x => x.timestamp === e.timestamp && x.type === e.type));
+                    newEvents.reverse().forEach(e => addEvent(e));
+                }
+            }).catch(() => {});
+        }
+
         connect();
         loadStats();
-        renderAgents();
-
-        // Refresh stats periodically
+        loadAgents();
+        pollHistory();
         setInterval(loadStats, 5000);
-        setInterval(renderAgents, 10000);
-
-        // Heartbeat
-        setInterval(() => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send('ping');
-            }
-        }, 30000);
+        setInterval(loadAgents, 10000);
+        setInterval(pollHistory, 2000);
+        setInterval(() => { if (ws?.readyState === 1) ws.send('ping'); }, 30000);
     </script>
 </body>
 </html>

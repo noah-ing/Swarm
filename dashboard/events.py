@@ -167,13 +167,21 @@ class EventBus:
             except Exception as e:
                 print(f"Event subscriber error: {e}")
 
-        # Notify async subscribers
+        # Notify async subscribers (thread-safe)
         for callback in self._async_subscribers:
             try:
-                asyncio.create_task(callback(event))
+                loop = asyncio.get_running_loop()
+                loop.create_task(callback(event))
             except RuntimeError:
-                # No event loop running, skip async
-                pass
+                # No event loop in this thread - use call_soon_threadsafe
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        loop.call_soon_threadsafe(
+                            lambda cb=callback, e=event: asyncio.ensure_future(cb(e))
+                        )
+                except Exception:
+                    pass
 
     def get_history(self, limit: int = 100, event_types: list[EventType] = None) -> list[SwarmEvent]:
         """Get recent event history."""
