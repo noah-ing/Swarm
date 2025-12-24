@@ -47,7 +47,7 @@ Respond with a JSON analysis:
 {
     "understanding": "What the task is really asking for",
     "approach": {
-        "strategy": "direct|decompose_parallel|decompose_sequential|explore_first|trial_and_error",
+        "strategy": "direct|decompose_parallel|decompose_sequential|hierarchical|explore_first|trial_and_error",
         "reasoning": "Why this strategy",
         "steps": ["Step 1", "Step 2", ...]
     },
@@ -75,6 +75,7 @@ Respond with a JSON analysis:
 - **direct**: Single agent, straightforward execution
 - **decompose_parallel**: Split into independent subtasks, run simultaneously
 - **decompose_sequential**: Split into dependent subtasks, run in order
+- **hierarchical**: Multi-level goal decomposition for very complex tasks
 - **explore_first**: Gather information before acting
 - **trial_and_error**: Try approaches, learn from results
 

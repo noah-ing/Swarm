@@ -94,6 +94,13 @@ Most AI agent frameworks execute tasks. Swarm **learns from every execution**:
 - **Consensus Building**: NegotiatorAgent selects or synthesizes best approach
 - **Risk-Based Activation**: Auto-triggers on HIGH/CRITICAL risk tasks
 
+### Hierarchical Goal Decomposition (`goals.py`)
+- **Recursive Planning**: Breaks complex goals into nested sub-goals
+- **Tree Structure**: Goals form a tree, executed bottom-up (leaves first)
+- **Depth Limits**: Configurable max depth (default 3) prevents over-decomposition
+- **Parallel Execution**: Independent sibling goals run concurrently
+- **Result Propagation**: Child results aggregate up to parent goals
+
 ## Installation
 
 ```bash
@@ -189,7 +196,8 @@ All learning is stored in SQLite databases:
 ├── knowledge.db       # Cross-project knowledge transfer
 ├── embeddings_cache.db # Cached embeddings (saves API calls)
 ├── rollback.db        # File snapshots for rollback
-└── negotiation.db     # Multi-agent debate history
+├── negotiation.db     # Multi-agent debate history
+└── goals.db           # Hierarchical goal trees
 ```
 
 Learning persists across sessions and accumulates over time.
@@ -246,9 +254,9 @@ Over time, prompts naturally evolve to be more effective.
 - [x] Effect prediction before changes (risk scoring, impact analysis)
 - [x] Rollback planning (file snapshots, safe restoration, git integration)
 - [x] Multi-agent negotiation (critique, consensus, risk-based activation)
+- [x] Hierarchical goal decomposition (recursive planning, tree execution)
 
 ### Research Directions
-- [ ] Hierarchical goal decomposition
 - [ ] Continuous background learning
 
 ## License

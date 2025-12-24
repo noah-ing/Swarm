@@ -9,9 +9,14 @@ The Supervisor is the "CEO" of Swarm:
 - Can ask for help when uncertain
 """
 
+from __future__ import annotations
+
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from goals import GoalTree
 
 from .base import BaseAgent, StreamEvent
 from .thinker import ThinkerAgent, ThinkingResult
@@ -37,6 +42,7 @@ class SupervisorResult:
     effect_prediction: EffectPrediction | None = None
     rollback_plan_id: str | None = None
     negotiation_result: NegotiationResult | None = None
+    goal_tree: GoalTree | None = None
     strategy_used: str = ""
     model_used: str = ""
     tokens_used: int = 0
@@ -73,6 +79,10 @@ class Supervisor(BaseAgent):
         self.rollback = get_rollback_manager()
         self.negotiation = get_negotiation_coordinator(working_dir)
 
+        # Lazy import to avoid circular dependency
+        from goals import get_hierarchical_planner
+        self.hierarchical = get_hierarchical_planner(working_dir)
+
         # Set current project for cross-project knowledge
         if working_dir:
             self.knowledge.set_current_project(working_dir)
@@ -84,6 +94,7 @@ class Supervisor(BaseAgent):
         self.on_learning: Callable[[str], None] | None = None
         self.on_effect_prediction: Callable[[EffectPrediction], None] | None = None
         self.on_negotiation: Callable[[NegotiationResult], None] | None = None
+        self.on_goal_progress: Callable[[int, int], None] | None = None
 
     def run(
         self,
@@ -447,6 +458,10 @@ class Supervisor(BaseAgent):
                     task, full_context, recommended_model,
                     skip_qa, stream
                 )
+            elif strategy == "hierarchical":
+                # Hierarchical goal decomposition
+                self._execute_hierarchical(task, full_context, result)
+                return  # Already sets result fields
             else:
                 # Orchestrated execution
                 exec_result = self._execute_orchestrated(
@@ -614,6 +629,34 @@ class Supervisor(BaseAgent):
             stream=stream,
         )
 
+    def _execute_hierarchical(
+        self,
+        task: str,
+        context: str,
+        result: SupervisorResult,
+    ) -> None:
+        """Execute using hierarchical goal decomposition."""
+        # Set up callbacks
+        if self.on_goal_progress:
+            self.hierarchical.on_progress = self.on_goal_progress
+
+        # Plan the hierarchy
+        tree = self.hierarchical.plan(task, context)
+
+        # Execute the tree
+        tree = self.hierarchical.execute(tree, context, parallel=True)
+
+        # Store the tree
+        result.goal_tree = tree
+
+        # Aggregate results
+        result.success = tree.is_complete() and tree.root.status.value == "completed"
+        result.message = tree.root.result or tree.root.error or "Hierarchical execution complete"
+        result.tokens_used = tree.total_tokens
+
+        # Save for future reference
+        self.hierarchical.save_tree(tree)
+
     def get_cognitive_stats(self) -> dict[str, Any]:
         """Get stats from all cognitive components."""
         return {
@@ -623,6 +666,7 @@ class Supervisor(BaseAgent):
             "knowledge": self.knowledge.get_stats(),
             "rollback": self.rollback.get_stats(),
             "negotiation": self.negotiation.get_stats(),
+            "hierarchical": self.hierarchical.get_stats(),
         }
 
     def execute_rollback(self, plan_id: str) -> dict[str, Any]:

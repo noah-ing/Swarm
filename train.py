@@ -20,6 +20,7 @@ from brain import get_brain
 from evolution import get_evolution
 from memory import get_memory_store
 from knowledge import get_knowledge_store
+from goals import get_hierarchical_planner
 
 
 # Benchmark tasks for training
@@ -73,11 +74,13 @@ def print_stats():
     evolution = get_evolution()
     memory = get_memory_store()
     knowledge = get_knowledge_store()
+    hierarchical = get_hierarchical_planner()
 
     brain_stats = brain.get_stats()
     evo_stats = evolution.get_stats()
     mem_stats = memory.get_stats()
     know_stats = knowledge.get_stats()
+    hier_stats = hierarchical.get_stats()
 
     print("\n" + "="*60)
     print(" SWARM LEARNING STATS")
@@ -104,6 +107,11 @@ def print_stats():
     print(f"   Cross-project memories: {know_stats['total_memories']} ({know_stats['transferable_memories']} transferable)")
     print(f"   Universal insights: {know_stats['universal_insights']}")
     print(f"   Transfers: {know_stats['total_transfers']} ({know_stats['transfer_success_rate']:.0%} success rate)")
+
+    print(f"\n Hierarchical Planning:")
+    print(f"   Total plans: {hier_stats['total_plans']}")
+    print(f"   Completed: {hier_stats['completed_plans']} ({hier_stats['success_rate']:.0%} success rate)")
+    print(f"   Avg goals per plan: {hier_stats['avg_goals_per_plan']:.1f}")
     print("="*60 + "\n")
 
 
