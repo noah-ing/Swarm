@@ -23,6 +23,7 @@ from codebase import get_codebase_analyzer, CodebaseAnalyzer
 from memory import get_memory_store
 from knowledge import get_knowledge_store
 from effects import get_effect_predictor, EffectPrediction
+from rollback import get_rollback_manager, RollbackPlan
 
 
 @dataclass
@@ -33,6 +34,7 @@ class SupervisorResult:
     thinking: ThinkingResult | None = None
     execution_result: OrchestratorResult | GruntResult | None = None
     effect_prediction: EffectPrediction | None = None
+    rollback_plan_id: str | None = None
     strategy_used: str = ""
     model_used: str = ""
     tokens_used: int = 0
@@ -66,6 +68,7 @@ class Supervisor(BaseAgent):
         self.memory = get_memory_store()
         self.knowledge = get_knowledge_store()
         self.effects = get_effect_predictor()
+        self.rollback = get_rollback_manager()
 
         # Set current project for cross-project knowledge
         if working_dir:
@@ -131,11 +134,18 @@ class Supervisor(BaseAgent):
         # Phase 4: Get evolved prompt if available
         prompt_variant_id, evolved_prompt = self._phase4_get_evolved_prompt()
 
+        # Phase 4.5: Create rollback plan
+        rollback_plan = self._phase4_5_create_rollback_plan(task, effect_prediction, result)
+
         # Phase 5: Execute based on strategy
         self._phase5_execute_task(
-            strategy, task, full_context, recommended_model, 
+            strategy, task, full_context, recommended_model,
             evolved_prompt, skip_qa, stream, result
         )
+
+        # Mark rollback plan as executed
+        if rollback_plan:
+            self.rollback.mark_executed(rollback_plan.id)
 
         result.duration_seconds = time.time() - start_time
 
@@ -320,6 +330,60 @@ class Supervisor(BaseAgent):
     def _phase4_get_evolved_prompt(self) -> tuple[int | None, str | None]:
         """Phase 4: Get evolved prompt if available."""
         return self.evolution.get_prompt("grunt")
+
+    def _phase4_5_create_rollback_plan(
+        self,
+        task: str,
+        effect_prediction: EffectPrediction | None,
+        result: SupervisorResult,
+    ) -> RollbackPlan | None:
+        """Phase 4.5: Create rollback plan before execution."""
+        if not self.working_dir:
+            return None
+
+        try:
+            # Determine files to watch based on effect prediction
+            files_to_watch = []
+            if effect_prediction:
+                files_to_watch = effect_prediction.target_files.copy()
+                # Also watch directly affected files
+                for af in effect_prediction.affected_files[:5]:
+                    if af.impact_type == "direct":
+                        files_to_watch.append(af.path)
+
+            # If no effect prediction, watch common files
+            if not files_to_watch:
+                files_to_watch = self._guess_target_files(task)
+
+            if not files_to_watch:
+                return None
+
+            plan = self.rollback.create_plan(
+                task=task,
+                root_path=self.working_dir,
+                files_to_watch=files_to_watch,
+            )
+
+            result.rollback_plan_id = plan.id
+            return plan
+
+        except Exception:
+            return None
+
+    def _guess_target_files(self, task: str) -> list[str]:
+        """Guess which files might be modified based on task description."""
+        task_lower = task.lower()
+        guessed = []
+
+        # Common patterns
+        if "readme" in task_lower:
+            guessed.append("README.md")
+        if "config" in task_lower:
+            guessed.extend(["config.py", "settings.py"])
+        if "test" in task_lower:
+            guessed.append("tests/")
+
+        return guessed[:5]
 
     def _phase5_execute_task(
         self,
@@ -520,7 +584,31 @@ class Supervisor(BaseAgent):
             "memory": self.memory.get_stats(),
             "evolution": self.evolution.get_stats(),
             "knowledge": self.knowledge.get_stats(),
+            "rollback": self.rollback.get_stats(),
         }
+
+    def execute_rollback(self, plan_id: str) -> dict[str, Any]:
+        """
+        Execute a rollback to restore files to previous state.
+
+        Args:
+            plan_id: The rollback plan ID (from SupervisorResult.rollback_plan_id)
+
+        Returns:
+            Dict with success status and details
+        """
+        result = self.rollback.rollback(plan_id)
+        return {
+            "success": result.success,
+            "files_restored": result.files_restored,
+            "files_deleted": result.files_deleted,
+            "errors": result.errors,
+            "used_git": result.used_git,
+        }
+
+    def get_recent_rollback_plans(self, limit: int = 5) -> list[dict]:
+        """Get recent rollback plans for review."""
+        return self.rollback.get_recent_plans(limit)
 
     def __repr__(self) -> str:
         """String representation."""

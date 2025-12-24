@@ -82,6 +82,12 @@ Most AI agent frameworks execute tasks. Swarm **learns from every execution**:
 - **Breaking Change Detection**: Identifies potential breaking changes
 - **Safety Suggestions**: Recommends tests to run and precautions
 
+### Rollback System (`rollback.py`)
+- **File Snapshots**: Captures file states before changes
+- **Automatic Planning**: Creates rollback plans before execution
+- **Safe Restoration**: Restores files to previous state on failure
+- **Git Integration**: Uses git for rollback when available
+
 ## Installation
 
 ```bash
@@ -175,7 +181,8 @@ All learning is stored in SQLite databases:
 ├── memory.db          # Past solutions, model performance
 ├── codebase.db        # Project understanding cache
 ├── knowledge.db       # Cross-project knowledge transfer
-└── embeddings_cache.db # Cached embeddings (saves API calls)
+├── embeddings_cache.db # Cached embeddings (saves API calls)
+└── rollback.db        # File snapshots for rollback
 ```
 
 Learning persists across sessions and accumulates over time.
@@ -230,9 +237,7 @@ Over time, prompts naturally evolve to be more effective.
 - [x] Real embedding model for semantic search (OpenAI text-embedding-3-small)
 - [x] Cross-project knowledge transfer (universal insights, transferability assessment)
 - [x] Effect prediction before changes (risk scoring, impact analysis)
-
-### Next Steps
-- [ ] Rollback planning
+- [x] Rollback planning (file snapshots, safe restoration, git integration)
 
 ### Research Directions
 - [ ] Multi-agent negotiation
