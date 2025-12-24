@@ -290,6 +290,7 @@ Over time, prompts naturally evolve to be more effective.
 - [x] Hierarchical goal decomposition (recursive planning, tree execution)
 - [x] Continuous background learning (daemon mode, skill practice, consolidation)
 - [x] Meta-learning (self-optimization, hypothesis testing, hyperparameter tuning)
+- [x] Self-modifying architecture (dynamic agent creation, evolution, retirement)
 
 ### Research Directions
 - [ ] Multi-modal reasoning (code + diagrams + docs)
