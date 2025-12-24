@@ -30,6 +30,7 @@ from knowledge import get_knowledge_store
 from effects import get_effect_predictor, EffectPrediction
 from rollback import get_rollback_manager, RollbackPlan
 from negotiation import get_negotiation_coordinator, NegotiationResult
+from agentfactory import get_agent_factory, AgentFactory, AgentBlueprint
 
 
 @dataclass
@@ -82,6 +83,7 @@ class Supervisor(BaseAgent):
         # Lazy import to avoid circular dependency
         from goals import get_hierarchical_planner
         self.hierarchical = get_hierarchical_planner(working_dir)
+        self.agent_factory = get_agent_factory()
 
         # Set current project for cross-project knowledge
         if working_dir:
@@ -95,6 +97,7 @@ class Supervisor(BaseAgent):
         self.on_effect_prediction: Callable[[EffectPrediction], None] | None = None
         self.on_negotiation: Callable[[NegotiationResult], None] | None = None
         self.on_goal_progress: Callable[[int, int], None] | None = None
+        self.on_agent_spawn: Callable[[AgentBlueprint], None] | None = None
 
     def run(
         self,
@@ -657,6 +660,119 @@ class Supervisor(BaseAgent):
         # Save for future reference
         self.hierarchical.save_tree(tree)
 
+    def _find_dynamic_agent(self, task: str) -> AgentBlueprint | None:
+        """Find a suitable dynamic agent for the task."""
+        active_agents = self.agent_factory.get_active_agents()
+        if not active_agents:
+            return None
+
+        task_lower = task.lower()
+        best_match = None
+        best_score = 0
+
+        for agent in active_agents:
+            # Score based on capability match
+            score = 0
+            for cap in agent.capabilities:
+                if cap.lower() in task_lower:
+                    score += 1
+
+            # Bonus for success rate
+            total = agent.tasks_completed + agent.tasks_failed
+            if total > 5:
+                success_rate = agent.tasks_completed / total
+                score += success_rate
+
+            if score > best_score:
+                best_score = score
+                best_match = agent
+
+        # Only return if reasonable match
+        if best_score >= 1:
+            return best_match
+        return None
+
+    def _execute_with_dynamic_agent(
+        self,
+        agent_blueprint: AgentBlueprint,
+        task: str,
+        context: str,
+        stream: bool,
+    ) -> dict:
+        """Execute task with a dynamically loaded agent."""
+        agent_class = self.agent_factory.load_agent(agent_blueprint.id)
+        if not agent_class:
+            return {"success": False, "error": "Failed to load dynamic agent"}
+
+        start_time = time.time()
+        try:
+            agent = agent_class(model=self.model)
+
+            # Execute based on agent role
+            if agent_blueprint.role.value == "analyzer":
+                result = agent.analyze(task, context)
+            elif agent_blueprint.role.value == "validator":
+                result = agent.validate(task)
+            elif agent_blueprint.role.value == "transformer":
+                result = agent.transform(task, context)
+            elif agent_blueprint.role.value == "specialist":
+                result = agent.consult(task, context)
+            else:
+                result = agent.run(task, context)
+
+            duration = time.time() - start_time
+            tokens = result.get("tokens", 0)
+
+            # Record outcome
+            self.agent_factory.record_task(
+                agent_blueprint.id,
+                success=True,
+                tokens=tokens,
+                duration=duration,
+            )
+
+            return {
+                "success": True,
+                "result": result.get("result") or result.get("analysis") or result.get("advice") or str(result),
+                "tokens": tokens,
+                "duration": duration,
+                "agent_used": agent_blueprint.name,
+            }
+
+        except Exception as e:
+            duration = time.time() - start_time
+            self.agent_factory.record_task(agent_blueprint.id, success=False, tokens=0, duration=duration)
+            return {"success": False, "error": str(e)}
+
+    def spawn_agent_for_need(self, task_pattern: str) -> AgentBlueprint | None:
+        """
+        Spawn a new agent type based on identified need.
+
+        This is self-modifying architecture - the system creates new agents
+        when it identifies gaps in its capabilities.
+        """
+        # Analyze needs
+        needs = self.agent_factory.analyze_needs()
+
+        # Find matching need
+        for need in needs:
+            if need.pattern.lower() in task_pattern.lower() or task_pattern.lower() in need.pattern.lower():
+                # Create agent for this need
+                name = f"auto_{need.suggested_role.value}_{len(self.agent_factory.get_active_agents())}"
+                blueprint = self.agent_factory.create_agent(
+                    name=name,
+                    role=need.suggested_role,
+                    description=f"Auto-generated agent for: {need.pattern}",
+                    capabilities=need.suggested_capabilities,
+                )
+
+                if self.on_agent_spawn:
+                    self.on_agent_spawn(blueprint)
+
+                return blueprint
+
+        return None
+
     def get_cognitive_stats(self) -> dict[str, Any]:
         """Get stats from all cognitive components."""
         return {
@@ -667,6 +783,7 @@ class Supervisor(BaseAgent):
             "rollback": self.rollback.get_stats(),
             "negotiation": self.negotiation.get_stats(),
             "hierarchical": self.hierarchical.get_stats(),
+            "agent_factory": self.agent_factory.get_stats(),
         }
 
     def execute_rollback(self, plan_id: str) -> dict[str, Any]:

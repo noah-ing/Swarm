@@ -23,6 +23,7 @@ from knowledge import get_knowledge_store
 from goals import get_hierarchical_planner
 from background import get_background_learner, LearningMode
 from metalearner import get_metalearner
+from agentfactory import get_agent_factory, AgentRole
 
 
 # Benchmark tasks for training
@@ -132,6 +133,14 @@ def print_stats():
     print(f"   Experiments: {meta_stats['total_experiments']} ({meta_stats['successful_experiments']} improved)")
     print(f"   Config changes: {meta_stats['config_changes']}")
     print(f"   Efficiency snapshots: {meta_stats['efficiency_snapshots']}")
+
+    # Agent factory stats
+    factory = get_agent_factory()
+    factory_stats = factory.get_stats()
+    print(f"\n Agent Factory:")
+    print(f"   Dynamic agents: {factory_stats['active_agents']} active, {factory_stats['testing_agents']} testing, {factory_stats['retired_agents']} retired")
+    print(f"   Max generation: {factory_stats['max_generation']}")
+    print(f"   Tasks by dynamic agents: {factory_stats['total_tasks']} ({factory_stats['overall_success_rate']:.0%} success)")
     print("="*60 + "\n")
 
 
@@ -375,6 +384,46 @@ Choose ONE specific, actionable task and execute it. Be precise."""
     print_stats()
 
 
+def run_spawn(agent_type: str = "executor"):
+    """Spawn a new dynamic agent type."""
+    print("AGENT FACTORY - SPAWN NEW AGENT")
+    print("="*60)
+
+    factory = get_agent_factory()
+
+    # Map type string to role
+    role_map = {
+        "executor": AgentRole.EXECUTOR,
+        "analyzer": AgentRole.ANALYZER,
+        "validator": AgentRole.VALIDATOR,
+        "transformer": AgentRole.TRANSFORMER,
+        "specialist": AgentRole.SPECIALIST,
+    }
+
+    role = role_map.get(agent_type, AgentRole.EXECUTOR)
+
+    # Generate a unique name
+    import time
+    name = f"dynamic_{agent_type}_{int(time.time()) % 10000}"
+
+    # Create the agent
+    blueprint = factory.create_agent(
+        name=name,
+        role=role,
+        description=f"Dynamically created {agent_type} agent for autonomous task handling",
+        capabilities=[agent_type, "autonomous", "adaptive"],
+    )
+
+    print(f"\nSpawned new agent:")
+    print(factory.format_blueprint(blueprint))
+
+    # Activate it
+    factory.activate_agent(blueprint.id)
+    print(f"Agent activated and ready for use.")
+
+    print_stats()
+
+
 def run_optimize():
     """Run meta-learning optimization cycle."""
     print("META-LEARNING OPTIMIZATION")
@@ -447,13 +496,15 @@ def run_daemon(duration_minutes: int = 60):
 
 def main():
     parser = argparse.ArgumentParser(description="Swarm Training Loop")
-    parser.add_argument("mode", choices=["benchmark", "self-improve", "interactive", "autonomous", "daemon", "optimize", "stats"],
+    parser.add_argument("mode", choices=["benchmark", "self-improve", "interactive", "autonomous", "daemon", "optimize", "spawn", "stats"],
                        help="Training mode")
     parser.add_argument("--rounds", type=int, default=1, help="Number of rounds (benchmark mode)")
     parser.add_argument("--iterations", type=int, default=3, help="Number of iterations (self-improve mode)")
     parser.add_argument("--duration", type=int, default=10, help="Duration in minutes (autonomous/daemon mode)")
     parser.add_argument("--model", default="sonnet", choices=["haiku", "sonnet", "opus"],
                        help="Model to use")
+    parser.add_argument("--type", default="executor", choices=["executor", "analyzer", "validator", "transformer", "specialist"],
+                       help="Agent type to spawn")
 
     args = parser.parse_args()
 
@@ -471,6 +522,8 @@ def main():
         run_daemon(duration_minutes=args.duration)
     elif args.mode == "optimize":
         run_optimize()
+    elif args.mode == "spawn":
+        run_spawn(agent_type=args.type)
 
 
 if __name__ == "__main__":

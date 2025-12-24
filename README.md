@@ -115,6 +115,13 @@ Most AI agent frameworks execute tasks. Swarm **learns from every execution**:
 - **Hyperparameter Tuning**: Optimizes mutation rates, thresholds, weights
 - **Self-Optimization**: The system that optimizes the optimization
 
+### Agent Factory (`agentfactory.py`)
+- **Dynamic Agent Creation**: Spawns new agent types from templates
+- **Self-Modifying Architecture**: System creates its own agents
+- **Agent Evolution**: Mutates and evolves agents (enhance, specialize, simplify)
+- **Performance Tracking**: Monitors and retires underperforming agents
+- **Generation Tracking**: Tracks lineage across agent evolution
+
 ## Installation
 
 ```bash
@@ -160,6 +167,9 @@ python3 train.py daemon --duration 60
 
 # Meta-learning optimization (tunes its own parameters)
 python3 train.py optimize
+
+# Spawn new dynamic agent types
+python3 train.py spawn --type analyzer
 
 # Interactive training mode
 python3 train.py interactive
@@ -219,7 +229,8 @@ All learning is stored in SQLite databases:
 ├── negotiation.db     # Multi-agent debate history
 ├── goals.db           # Hierarchical goal trees
 ├── background.db      # Background learning sessions
-└── metalearner.db     # Meta-learning experiments & config
+├── metalearner.db     # Meta-learning experiments & config
+└── agentfactory.db    # Dynamic agent blueprints & evolution
 ```
 
 Learning persists across sessions and accumulates over time.
