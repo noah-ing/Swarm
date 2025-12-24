@@ -76,6 +76,12 @@ Most AI agent frameworks execute tasks. Swarm **learns from every execution**:
 - **Universal Insights**: Extracts patterns that work everywhere
 - **Transferability Assessment**: Determines which solutions generalize
 
+### Effect Prediction (`effects.py`)
+- **Impact Analysis**: Predicts which files will be affected by changes
+- **Risk Scoring**: Calculates risk level (low/medium/high/critical)
+- **Breaking Change Detection**: Identifies potential breaking changes
+- **Safety Suggestions**: Recommends tests to run and precautions
+
 ## Installation
 
 ```bash
@@ -223,9 +229,9 @@ Over time, prompts naturally evolve to be more effective.
 ### Completed
 - [x] Real embedding model for semantic search (OpenAI text-embedding-3-small)
 - [x] Cross-project knowledge transfer (universal insights, transferability assessment)
+- [x] Effect prediction before changes (risk scoring, impact analysis)
 
 ### Next Steps
-- [ ] Effect prediction before changes
 - [ ] Rollback planning
 
 ### Research Directions

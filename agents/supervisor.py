@@ -22,6 +22,7 @@ from evolution import get_evolution, PromptEvolution
 from codebase import get_codebase_analyzer, CodebaseAnalyzer
 from memory import get_memory_store
 from knowledge import get_knowledge_store
+from effects import get_effect_predictor, EffectPrediction
 
 
 @dataclass
@@ -31,6 +32,7 @@ class SupervisorResult:
     message: str
     thinking: ThinkingResult | None = None
     execution_result: OrchestratorResult | GruntResult | None = None
+    effect_prediction: EffectPrediction | None = None
     strategy_used: str = ""
     model_used: str = ""
     tokens_used: int = 0
@@ -63,6 +65,7 @@ class Supervisor(BaseAgent):
         self.codebase = get_codebase_analyzer()
         self.memory = get_memory_store()
         self.knowledge = get_knowledge_store()
+        self.effects = get_effect_predictor()
 
         # Set current project for cross-project knowledge
         if working_dir:
@@ -73,6 +76,7 @@ class Supervisor(BaseAgent):
         self.on_ask_user: Callable[[str], str] | None = None
         self.on_strategy: Callable[[str], None] | None = None
         self.on_learning: Callable[[str], None] | None = None
+        self.on_effect_prediction: Callable[[EffectPrediction], None] | None = None
 
     def run(
         self,
@@ -115,6 +119,14 @@ class Supervisor(BaseAgent):
         strategy, recommended_model = self._phase3_select_strategy_and_model(
             thinking, task, full_context, result
         )
+
+        # Phase 3.5: Predict effects before execution
+        effect_prediction = self._phase3_5_predict_effects(task, allow_ask, result)
+        if effect_prediction and effect_prediction.risk_level == "critical" and allow_ask:
+            if not self._confirm_high_risk(effect_prediction, result):
+                result.message = "Task cancelled due to high risk"
+                result.duration_seconds = time.time() - start_time
+                return result
 
         # Phase 4: Get evolved prompt if available
         prompt_variant_id, evolved_prompt = self._phase4_get_evolved_prompt()
@@ -258,8 +270,52 @@ class Supervisor(BaseAgent):
 
         if self.on_strategy:
             self.on_strategy(f"Strategy: {strategy}, Model: {recommended_model}")
-        
+
         return strategy, recommended_model
+
+    def _phase3_5_predict_effects(
+        self,
+        task: str,
+        allow_ask: bool,
+        result: SupervisorResult,
+    ) -> EffectPrediction | None:
+        """Phase 3.5: Predict effects before execution."""
+        if not self.working_dir:
+            return None
+
+        try:
+            prediction = self.effects.predict_from_task(self.working_dir, task)
+            result.effect_prediction = prediction
+
+            if self.on_effect_prediction:
+                self.on_effect_prediction(prediction)
+
+            return prediction
+        except Exception:
+            return None
+
+    def _confirm_high_risk(
+        self,
+        prediction: EffectPrediction,
+        result: SupervisorResult,
+    ) -> bool:
+        """Ask user to confirm high-risk changes."""
+        if not self.on_ask_user:
+            return True  # Proceed if no way to ask
+
+        formatted = self.effects.format_prediction(prediction)
+        response = self.on_ask_user(
+            f"This task has been assessed as CRITICAL risk:\n\n"
+            f"{formatted}\n\n"
+            f"Do you want to proceed? (yes/no)"
+        )
+
+        result.asked_user = True
+        result.user_response = response
+
+        if response and response.lower() in ("yes", "y", "proceed"):
+            return True
+        return False
 
     def _phase4_get_evolved_prompt(self) -> tuple[int | None, str | None]:
         """Phase 4: Get evolved prompt if available."""
