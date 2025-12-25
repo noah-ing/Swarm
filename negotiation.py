@@ -114,7 +114,7 @@ class NegotiationCoordinator:
         task: str,
         context: str = "",
         proposer_count: int = 2,
-        max_rounds: int = 3,
+        max_rounds: int = 2,  # 2 rounds sufficient with early exit
         use_dialogue: bool = True,
     ) -> NegotiationResult:
         """

@@ -6,10 +6,17 @@ Manages back-and-forth dialogue between agents where they can:
 - Respond to specific messages
 - Build on ideas iteratively
 - Reach consensus through discussion
+
+Optimizations:
+- Parallel API calls for round 1 proposers
+- Early termination on consensus
+- Summarized history for later rounds
+- 2 rounds default (sufficient for most tasks)
 """
 
 import time
 import uuid
+import concurrent.futures
 from dataclasses import dataclass, field
 from typing import Callable, Optional, TYPE_CHECKING
 
@@ -53,50 +60,35 @@ class DialogueParticipant:
     tokens_used: int = 0
 
 
-# Role-specific system prompts
+# Role-specific system prompts - kept concise to save tokens
 ROLE_PROMPTS = {
-    "proposer": """You are a solution proposer in a multi-agent debate. You can see what all other agents have said.
+    "proposer": """You propose solutions in a multi-agent debate.
+- Be specific and concrete
+- Respond to critiques constructively
+- Keep responses under 250 words""",
 
-Your job:
-- Propose clear, specific solutions to the task
-- Respond constructively to critiques
-- Acknowledge good points from others
-- Defend your choices with reasoning when challenged
-- Be willing to modify your approach based on feedback
+    "critic": """You critique proposals in a multi-agent debate.
+- Identify specific issues or risks
+- Suggest improvements
+- Acknowledge strengths
+- Keep responses under 250 words""",
 
-Keep responses focused and under 300 words. Address others by name when responding to their points.""",
-
-    "critic": """You are a critic in a multi-agent debate. You review proposals from other agents.
-
-Your job:
-- Identify specific issues, risks, or flaws in proposals
-- Ask clarifying questions
-- Suggest concrete improvements
-- Acknowledge strengths, not just weaknesses
-- Be constructive, not dismissive
-
-Keep responses focused and under 300 words. Address proposers by name when critiquing their solutions.""",
-
-    "moderator": """You are the moderator in a multi-agent debate. You facilitate consensus.
-
-Your job:
-- Summarize points of agreement
-- Identify remaining disagreements
-- Propose compromises or hybrid solutions
-- Ask agents to clarify or reconsider positions
-- Call for final consensus when discussion has converged
-
-When consensus is reached, output the final solution clearly marked with "FINAL SOLUTION:" prefix.
-Keep responses focused and under 300 words.""",
+    "moderator": """You moderate a multi-agent debate.
+- Summarize agreement/disagreement
+- Synthesize best approaches
+- When ready, output "FINAL SOLUTION:" followed by the solution
+- Keep responses under 250 words""",
 }
 
 
 class DialogueRoom:
     """
-    Manages multi-agent conversation.
+    Manages multi-agent conversation with optimizations.
 
-    Agents take turns speaking, each seeing the full conversation history.
-    The conversation flows: proposers → critic → responses → moderator.
+    Optimizations:
+    - Round 1: Parallel API calls (proposers don't need to see each other)
+    - Round 2+: Sequential with summarized history
+    - Early exit on consensus
     """
 
     def __init__(
@@ -123,16 +115,51 @@ class DialogueRoom:
             agent=agent,
         )
 
-    def _format_conversation(self) -> str:
-        """Format the full conversation for agents to see."""
+    def _summarize_round(self, round_messages: list[DialogueMessage]) -> str:
+        """Summarize a round's messages to save tokens."""
+        if not round_messages:
+            return ""
+
+        summaries = []
+        for msg in round_messages:
+            # Truncate long messages
+            content = msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
+            summaries.append(f"[{msg.speaker}]: {content}")
+
+        return "\n".join(summaries)
+
+    def _format_conversation(self, summarize_before_round: int = 0) -> str:
+        """Format conversation, optionally summarizing older rounds."""
         if not self.messages:
             return "(No messages yet)"
 
+        # Group messages by round (roughly 3-5 messages per round)
+        if summarize_before_round > 1 and len(self.messages) > 5:
+            # Summarize older messages, keep recent ones in full
+            msgs_per_round = 5  # approximate
+            cutoff = (summarize_before_round - 1) * msgs_per_round
+            cutoff = min(cutoff, len(self.messages) - 3)  # Keep at least last 3
+
+            if cutoff > 0:
+                old_msgs = self.messages[:cutoff]
+                recent_msgs = self.messages[cutoff:]
+
+                summary = "[Previous discussion summary]\n"
+                summary += self._summarize_round(old_msgs)
+                summary += "\n\n[Recent messages]\n"
+
+                lines = []
+                for msg in recent_msgs:
+                    lines.append(f"[{msg.speaker}]: {msg.content}")
+                summary += "\n\n".join(lines)
+
+                return summary
+
+        # Full conversation
         lines = []
         for msg in self.messages:
             prefix = f"[{msg.speaker}]"
             if msg.reply_to:
-                # Find the message being replied to
                 for m in self.messages:
                     if m.id == msg.reply_to:
                         prefix = f"[{msg.speaker} → @{m.speaker}]"
@@ -143,7 +170,6 @@ class DialogueRoom:
 
     def _emit_message(self, msg: DialogueMessage):
         """Emit a dialogue message event for the dashboard."""
-        # Get reply-to speaker name if applicable
         reply_to_speaker = ""
         if msg.reply_to:
             for m in self.messages:
@@ -190,31 +216,34 @@ class DialogueRoom:
         )
         self.messages.append(msg)
 
-        # Emit event and callback
         self._emit_message(msg)
         if self.on_message:
             self.on_message(msg)
 
         return msg
 
-    def _get_agent_response(self, participant: DialogueParticipant, prompt: str) -> str:
+    def _get_agent_response(
+        self,
+        participant: DialogueParticipant,
+        prompt: str,
+        current_round: int = 1,
+    ) -> str:
         """Get a response from an agent given the conversation context."""
-        # Build the conversation context
-        conversation = self._format_conversation()
+        # Summarize older rounds to save tokens
+        conversation = self._format_conversation(summarize_before_round=current_round)
 
         user_content = f"""## Task
 {self.task}
 
 ## Context
-{self.context if self.context else "(None provided)"}
+{self.context if self.context else "(None)"}
 
-## Conversation So Far
+## Discussion
 {conversation}
 
 ## Your Turn
 {prompt}"""
 
-        # Use the agent's chat method with role-specific system prompt
         original_prompt = participant.agent.system_prompt
         participant.agent.system_prompt = ROLE_PROMPTS.get(participant.role, "")
 
@@ -228,17 +257,46 @@ class DialogueRoom:
         finally:
             participant.agent.system_prompt = original_prompt
 
-    def run_dialogue(self, max_rounds: int = 3, proposer_count: int = 2) -> DialogueResult:
-        """
-        Run the full dialogue session with turn-taking.
+    def _get_parallel_responses(
+        self,
+        participants: list[DialogueParticipant],
+        prompt: str,
+        current_round: int = 1,
+    ) -> list[tuple[DialogueParticipant, str]]:
+        """Get responses from multiple agents in parallel."""
+        results = []
 
-        Flow per round:
-        1. Proposers share/update their approaches
-        2. Critic responds to proposals
-        3. Moderator summarizes and checks for consensus
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(participants)) as executor:
+            future_to_participant = {
+                executor.submit(self._get_agent_response, p, prompt, current_round): p
+                for p in participants
+            }
+
+            for future in concurrent.futures.as_completed(future_to_participant):
+                participant = future_to_participant[future]
+                try:
+                    content = future.result()
+                    results.append((participant, content))
+                except Exception as e:
+                    results.append((participant, f"Error: {e}"))
+
+        # Sort by original order
+        participant_order = {p.name: i for i, p in enumerate(participants)}
+        results.sort(key=lambda x: participant_order.get(x[0].name, 999))
+
+        return results
+
+    def run_dialogue(self, max_rounds: int = 2, proposer_count: int = 2) -> DialogueResult:
+        """
+        Run dialogue with optimizations.
+
+        Optimizations applied:
+        - Round 1: Parallel proposer calls
+        - Early exit on "FINAL SOLUTION:"
+        - Summarized history for round 2+
 
         Args:
-            max_rounds: Maximum conversation rounds
+            max_rounds: Maximum rounds (default 2, sufficient for most)
             proposer_count: Number of proposers (2-3)
 
         Returns:
@@ -253,55 +311,55 @@ class DialogueRoom:
 
         final_solution = ""
         consensus_reached = False
+        round_num = 0
 
         for round_num in range(1, max_rounds + 1):
-            # Round header event
             self.event_bus.emit(SwarmEvent(
                 type=EventType.THOUGHT,
                 agent_name="DialogueRoom",
-                content=f"Starting round {round_num}/{max_rounds}",
+                content=f"Round {round_num}/{max_rounds}",
                 data={"round": round_num},
             ))
 
             # Phase 1: Proposers speak
-            for proposer in proposers:
-                if round_num == 1:
-                    prompt = "Share your initial approach to solving this task. Be specific and concrete."
-                    msg_type = "proposal"
-                else:
-                    prompt = "Given the discussion so far, update or defend your approach. Address any critiques."
-                    msg_type = "response"
-
-                content = self._get_agent_response(proposer, prompt)
-                self.speak(proposer.name, content, msg_type=msg_type)
+            if round_num == 1:
+                # OPTIMIZATION: Parallel calls for round 1
+                prompt = "Propose your approach to this task. Be specific and concrete."
+                responses = self._get_parallel_responses(proposers, prompt, round_num)
+                for participant, content in responses:
+                    self.speak(participant.name, content, msg_type="proposal")
+            else:
+                # Sequential for later rounds (need to see each other's updates)
+                for proposer in proposers:
+                    prompt = "Update or defend your approach based on the discussion. Address critiques."
+                    content = self._get_agent_response(proposer, prompt, round_num)
+                    self.speak(proposer.name, content, msg_type="response")
 
             # Phase 2: Critic responds
-            for critic in critics:
-                if round_num == 1:
-                    prompt = "Review the proposals above. Identify issues, ask questions, and suggest improvements."
-                else:
-                    prompt = "Given the updated proposals and discussion, provide any remaining concerns or acknowledge improvements."
-
-                content = self._get_agent_response(critic, prompt)
-                self.speak(critic.name, content, msg_type="critique")
-
-            # Phase 3: Moderator checks for consensus
-            moderator = moderators[0]
-            if round_num < max_rounds:
-                prompt = "Summarize the current state of discussion. Are we converging? What needs resolution?"
+            critic = critics[0]
+            if round_num == 1:
+                prompt = "Review the proposals. Identify issues and suggest improvements."
             else:
-                prompt = "This is the final round. Synthesize the best solution from the discussion. Output 'FINAL SOLUTION:' followed by the solution."
+                prompt = "Any remaining concerns? Acknowledge improvements if proposals addressed your critiques."
 
-            content = self._get_agent_response(moderator, prompt)
-            self.speak(moderator.name, content, msg_type="consensus" if round_num == max_rounds else "summary")
+            content = self._get_agent_response(critic, prompt, round_num)
+            self.speak(critic.name, content, msg_type="critique")
 
-            # Check if consensus reached early
+            # Phase 3: Moderator
+            moderator = moderators[0]
+            # Always allow early consensus
+            prompt = "Summarize the discussion. If there's clear convergence, output 'FINAL SOLUTION:' followed by the synthesized solution. Otherwise, note what needs resolution."
+
+            content = self._get_agent_response(moderator, prompt, round_num)
+            self.speak(moderator.name, content, msg_type="summary")
+
+            # OPTIMIZATION: Early exit on consensus
             if "FINAL SOLUTION:" in content:
                 final_solution = content.split("FINAL SOLUTION:")[-1].strip()
                 consensus_reached = True
                 break
 
-        # If no explicit final solution, extract from last moderator message
+        # Extract solution if not explicit
         if not final_solution:
             for msg in reversed(self.messages):
                 if msg.role == "moderator":
@@ -319,11 +377,10 @@ class DialogueRoom:
 
 
 class DialogueAgent:
-    """Simple agent for dialogue participation (not abstract)."""
+    """Simple agent for dialogue participation."""
 
     def __init__(self, model: str = "sonnet"):
         from config import get_settings
-        import anthropic
 
         self.settings = get_settings()
         self.model = model
@@ -357,7 +414,7 @@ class DialogueAgent:
 
         kwargs = {
             "model": model_id,
-            "max_tokens": 2048,
+            "max_tokens": 1024,  # Reduced from 2048 - dialogues should be concise
             "messages": messages,
         }
         if self.system_prompt:
@@ -385,7 +442,7 @@ def create_dialogue_room(
     context: str = "",
     proposer_models: list[str] = None,
     critic_model: str = "sonnet",
-    moderator_model: str = "sonnet",
+    moderator_model: str = "haiku",  # Haiku sufficient for moderation
     working_dir: Optional[str] = None,
 ) -> DialogueRoom:
     """
@@ -396,7 +453,7 @@ def create_dialogue_room(
         context: Additional context
         proposer_models: Models for proposers (default: ["haiku", "sonnet"])
         critic_model: Model for critic
-        moderator_model: Model for moderator
+        moderator_model: Model for moderator (default: haiku - cheaper)
         working_dir: Working directory for agents
 
     Returns:
@@ -407,7 +464,7 @@ def create_dialogue_room(
     room = DialogueRoom(task=task, context=context)
 
     # Add proposers
-    for i, model in enumerate(proposer_models):
+    for model in proposer_models:
         agent = DialogueAgent(model=model)
         room.add_participant(
             name=f"Proposer-{model.title()}",
