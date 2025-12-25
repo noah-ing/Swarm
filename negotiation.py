@@ -2,10 +2,10 @@
 Negotiation Coordinator: Orchestrates multi-agent debate.
 
 Manages the full negotiation process:
-1. Generate proposals from multiple agents
-2. Have each critiqued
-3. Build consensus
-4. Track negotiation history
+1. Create a dialogue room with proposers, critic, moderator
+2. Run multi-round conversational debate
+3. Agents respond to each other iteratively
+4. Moderator synthesizes consensus
 """
 
 import sqlite3
@@ -19,6 +19,7 @@ from agents.grunt import GruntAgent, GruntResult
 from agents.critic import CriticAgent, CritiqueResult
 from agents.negotiator import NegotiatorAgent, ConsensusResult, Proposal
 from effects import EffectPrediction
+# Note: dialogue import is done inside methods to avoid circular import
 
 
 @dataclass
@@ -113,7 +114,8 @@ class NegotiationCoordinator:
         task: str,
         context: str = "",
         proposer_count: int = 2,
-        max_rounds: int = 1,
+        max_rounds: int = 3,
+        use_dialogue: bool = True,
     ) -> NegotiationResult:
         """
         Run a full negotiation process.
@@ -123,9 +125,107 @@ class NegotiationCoordinator:
             context: Additional context
             proposer_count: Number of proposals to generate (2-3)
             max_rounds: Maximum debate rounds
+            use_dialogue: If True, use conversational dialogue; if False, use one-pass
 
         Returns:
             NegotiationResult with final solution
+        """
+        if use_dialogue:
+            return self._negotiate_with_dialogue(task, context, proposer_count, max_rounds)
+        else:
+            return self._negotiate_one_pass(task, context, proposer_count)
+
+    def _negotiate_with_dialogue(
+        self,
+        task: str,
+        context: str,
+        proposer_count: int,
+        max_rounds: int,
+    ) -> NegotiationResult:
+        """
+        Run negotiation using multi-round conversational dialogue.
+
+        Agents talk to each other, building on ideas and responding to critiques.
+        """
+        # Import here to avoid circular import
+        from dialogue import create_dialogue_room
+
+        negotiation_id = f"neg_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        proposer_count = min(max(proposer_count, 2), 3)
+
+        # Determine proposer models based on count
+        model_options = ["haiku", "sonnet", "opus"]
+        proposer_models = model_options[:proposer_count]
+
+        # Create dialogue room
+        room = create_dialogue_room(
+            task=task,
+            context=context,
+            proposer_models=proposer_models,
+            critic_model="sonnet",
+            moderator_model="sonnet",
+            working_dir=self.working_dir,
+        )
+
+        # Run the dialogue
+        dialogue_result = room.run_dialogue(max_rounds=max_rounds, proposer_count=proposer_count)
+
+        # Convert dialogue messages to proposals for compatibility
+        proposals = []
+        for i, msg in enumerate(dialogue_result.messages):
+            if msg.msg_type == "proposal":
+                proposals.append(Proposal(
+                    id=i,
+                    solution=msg.content,
+                    model_used=msg.speaker_model,
+                ))
+
+        # Create a consensus result from the dialogue
+        consensus = ConsensusResult(
+            selected_index=0,
+            selected_solution=dialogue_result.final_solution,
+            rationale="Consensus reached through multi-agent dialogue",
+            confidence=0.85 if dialogue_result.consensus_reached else 0.6,
+            synthesis_used=True,
+            dissenting_points=[],
+            input_tokens=0,
+            output_tokens=0,
+        )
+
+        # Store negotiation record
+        self._store_negotiation(
+            negotiation_id=negotiation_id,
+            task=task,
+            proposer_count=proposer_count,
+            rounds=dialogue_result.rounds,
+            consensus=consensus,
+            total_tokens=dialogue_result.total_tokens,
+        )
+
+        if self.on_consensus:
+            self.on_consensus(consensus)
+
+        return NegotiationResult(
+            success=True,
+            final_solution=dialogue_result.final_solution,
+            proposals_count=proposer_count,
+            rounds=dialogue_result.rounds,
+            consensus=consensus,
+            all_proposals=proposals,
+            total_tokens=dialogue_result.total_tokens,
+            negotiation_id=negotiation_id,
+        )
+
+    def _negotiate_one_pass(
+        self,
+        task: str,
+        context: str,
+        proposer_count: int,
+    ) -> NegotiationResult:
+        """
+        Run negotiation using one-pass sequential flow (legacy mode).
+
+        Proposals → Critique → Consensus (no back-and-forth).
         """
         negotiation_id = f"neg_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         proposer_count = min(max(proposer_count, 2), 3)

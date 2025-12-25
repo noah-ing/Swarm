@@ -32,6 +32,7 @@ class EventType(Enum):
 
     # Inter-agent communication
     MESSAGE = "message"
+    DIALOGUE = "dialogue"  # Agent-to-agent chat in dialogue room
     CRITIQUE = "critique"
     PROPOSAL = "proposal"
     CONSENSUS = "consensus"

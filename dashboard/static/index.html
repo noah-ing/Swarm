@@ -176,6 +176,7 @@
         }
         .event.thought { border-left-color: #68a; }
         .event.message { border-left-color: #86a; }
+        .event.dialogue { border-left-color: #8a8; }
         .event.task_start { border-left-color: var(--yellow); }
         .event.task_complete { border-left-color: var(--accent); }
         .event.task_error { border-left-color: var(--red); }
@@ -243,7 +244,60 @@
             color: var(--text);
             line-height: 1.4;
         }
-        /* Messages */
+        /* Dialogue Chat Bubbles */
+        .dialogue-msg {
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            max-width: 95%;
+        }
+        .dialogue-msg.proposer {
+            background: #2a3a2a;
+            border-left: 3px solid #6a6;
+        }
+        .dialogue-msg.critic {
+            background: #3a2a2a;
+            border-left: 3px solid #a66;
+        }
+        .dialogue-msg.moderator {
+            background: #2a2a3a;
+            border-left: 3px solid #66a;
+        }
+        .dialogue-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .dialogue-speaker {
+            font-weight: bold;
+            font-size: 11px;
+        }
+        .dialogue-msg.proposer .dialogue-speaker { color: #8a8; }
+        .dialogue-msg.critic .dialogue-speaker { color: #c88; }
+        .dialogue-msg.moderator .dialogue-speaker { color: #88c; }
+        .dialogue-model {
+            font-size: 9px;
+            color: var(--dim);
+            padding: 1px 4px;
+            background: var(--bg);
+            border-radius: 2px;
+        }
+        .dialogue-reply {
+            font-size: 9px;
+            color: var(--dim);
+        }
+        .dialogue-content {
+            line-height: 1.5;
+            color: var(--text);
+        }
+        .dialogue-type {
+            font-size: 9px;
+            color: var(--dim);
+            text-transform: uppercase;
+            margin-left: auto;
+        }
+        /* Legacy Messages */
         .msg {
             padding: 8px;
             margin-bottom: 4px;
@@ -340,7 +394,8 @@
             if (events.length > 200) events.pop();
             if (render) renderEvents();
             if (['thought','reasoning'].includes(e.type)) addThought(e);
-            if (['message','critique','proposal','consensus'].includes(e.type)) addDialogue(e);
+            if (e.type === 'dialogue') addDialogueBubble(e);
+            else if (['message','critique','proposal','consensus'].includes(e.type)) addDialogue(e);
         }
 
         function renderEvents() {
@@ -348,7 +403,7 @@
             const f = events.filter(e => {
                 if (view === 'all') return true;
                 if (view === 'thoughts') return ['thought','reasoning','reflection'].includes(e.type);
-                if (view === 'messages') return ['message','critique','proposal','consensus'].includes(e.type);
+                if (view === 'messages') return ['message','dialogue','critique','proposal','consensus'].includes(e.type);
                 if (view === 'tasks') return ['task_start','task_complete','task_error'].includes(e.type);
                 return true;
             });
@@ -379,14 +434,38 @@
             while (c.children.length > 10) c.removeChild(c.lastChild);
         }
 
+        function addDialogueBubble(e) {
+            const c = document.getElementById('dialogue');
+            if (c.querySelector('.empty')) c.innerHTML = '';
+            const d = document.createElement('div');
+            const role = e.agent_role || (e.agent_name||'').toLowerCase().includes('critic') ? 'critic' :
+                         (e.agent_name||'').toLowerCase().includes('moderator') ? 'moderator' : 'proposer';
+            d.className = 'dialogue-msg ' + role;
+            const msgType = e.data?.msg_type || '';
+            const replyTo = e.target_agent_name ? `replying to @${e.target_agent_name}` : '';
+            d.innerHTML = `
+                <div class="dialogue-header">
+                    <span class="dialogue-speaker">${esc(e.agent_name||'Agent')}</span>
+                    ${e.model ? `<span class="dialogue-model">${e.model}</span>` : ''}
+                    ${replyTo ? `<span class="dialogue-reply">${replyTo}</span>` : ''}
+                    ${msgType ? `<span class="dialogue-type">${msgType}</span>` : ''}
+                </div>
+                <div class="dialogue-content">${esc((e.content||'').slice(0,500))}</div>
+            `;
+            c.appendChild(d);
+            c.scrollTop = c.scrollHeight;
+            while (c.children.length > 30) c.removeChild(c.firstChild);
+        }
+
         function addDialogue(e) {
             const c = document.getElementById('dialogue');
             if (c.querySelector('.empty')) c.innerHTML = '';
             const d = document.createElement('div');
             d.className = 'msg';
             d.innerHTML = `<div class="msg-header">${e.agent_name||''}${e.target_agent_name?' -> '+e.target_agent_name:''}</div><div class="msg-content">${esc((e.content||'').slice(0,200))}</div>`;
-            c.insertBefore(d, c.firstChild);
-            while (c.children.length > 20) c.removeChild(c.lastChild);
+            c.appendChild(d);
+            c.scrollTop = c.scrollHeight;
+            while (c.children.length > 20) c.removeChild(c.firstChild);
         }
 
         function loadAgents() {
