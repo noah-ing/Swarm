@@ -135,7 +135,7 @@ class BackgroundLearner:
 
     def _init_db(self):
         """Initialize background learning database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -415,7 +415,7 @@ class BackgroundLearner:
 
     def _should_consolidate(self) -> bool:
         """Check if knowledge consolidation is due."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -451,7 +451,7 @@ class BackgroundLearner:
             # Brain tracks its own patterns
 
             # Log consolidation
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path, check_same_thread=False)
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO consolidation_log
@@ -499,7 +499,7 @@ class BackgroundLearner:
 
     def _get_skill_needing_practice(self) -> str | None:
         """Get the skill that most needs practice."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         # Find skill with lowest recent success or least practiced
@@ -515,7 +515,7 @@ class BackgroundLearner:
 
     def _update_skill_practice(self, skill: str, success: bool):
         """Update skill practice tracking."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         # Get current stats
@@ -546,7 +546,7 @@ class BackgroundLearner:
 
     def _save_session(self, session: LearningSession):
         """Save learning session to database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -570,7 +570,7 @@ class BackgroundLearner:
 
     def get_stats(self) -> dict:
         """Get background learning statistics."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM learning_sessions")

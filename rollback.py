@@ -72,7 +72,7 @@ class RollbackManager:
 
     def _init_db(self):
         """Initialize the rollback database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -209,7 +209,7 @@ class RollbackManager:
 
     def _store_plan(self, plan: RollbackPlan, root_path: str):
         """Store rollback plan in database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         snapshots_json = json.dumps([
@@ -242,7 +242,7 @@ class RollbackManager:
 
     def mark_executed(self, plan_id: str, new_files: Optional[list[str]] = None):
         """Mark a plan as executed, optionally recording new files created."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         files_to_delete = json.dumps(new_files or [])
@@ -366,7 +366,7 @@ class RollbackManager:
 
     def _load_plan(self, plan_id: str) -> tuple[Optional[RollbackPlan], str]:
         """Load a rollback plan from database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -408,7 +408,7 @@ class RollbackManager:
 
     def _mark_rolled_back(self, plan_id: str):
         """Mark a plan as rolled back."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -420,7 +420,7 @@ class RollbackManager:
 
     def get_recent_plans(self, limit: int = 10) -> list[dict]:
         """Get recent rollback plans."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -446,7 +446,7 @@ class RollbackManager:
 
     def cleanup_old_plans(self, days: int = 7) -> int:
         """Remove rollback plans older than specified days."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cutoff = datetime.now().timestamp() - (days * 24 * 60 * 60)
@@ -464,7 +464,7 @@ class RollbackManager:
 
     def get_stats(self) -> dict:
         """Get rollback statistics."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM rollback_plans")

@@ -113,7 +113,7 @@ class CodebaseAnalyzer:
 
     def _init_db(self):
         """Initialize the codebase database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -488,7 +488,7 @@ class CodebaseAnalyzer:
 
     def _cache_analysis(self, codebase_id: str, codebase_map: CodebaseMap):
         """Cache the analysis results."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -535,7 +535,7 @@ class CodebaseAnalyzer:
 
     def _load_cached(self, codebase_id: str) -> CodebaseMap | None:
         """Load cached analysis if available and recent."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -584,6 +584,10 @@ class CodebaseAnalyzer:
             )
 
         conn.close()
+
+        # Rebuild dependency graph from loaded files
+        codebase_map.dependency_graph = self._build_dependency_graph(codebase_map.files)
+
         return codebase_map
 
     def get_relevant_files(self, codebase_map: CodebaseMap, task: str) -> list[str]:
@@ -593,12 +597,16 @@ class CodebaseAnalyzer:
         from embeddings import get_embedding_service
 
         task_lower = task.lower()
-        task_words = set(task_lower.split())
+        # Use regex to extract words, matching the same approach as path_words
+        task_words = set(re.findall(r'\w+', task_lower))
         relevant = []
 
         # Get task embedding for semantic comparison
         embedding_service = get_embedding_service()
         task_embedding = embedding_service.embed(task).embedding
+
+        # Extract explicit filenames mentioned in task (e.g., "brain.py", "config.py")
+        explicit_files = set(re.findall(r'\b[\w/]+\.py\b', task_lower))
 
         for path, info in codebase_map.files.items():
             score = 0.0
@@ -608,6 +616,11 @@ class CodebaseAnalyzer:
             path_words = set(re.findall(r'\w+', path_lower))
             path_overlap = len(task_words & path_words)
             score += path_overlap * 2
+
+            # Big boost for explicitly mentioned filenames
+            filename = os.path.basename(path_lower)
+            if filename in explicit_files or path_lower in explicit_files:
+                score += 20  # Strong boost for exact match
 
             symbols = set(f.lower() for f in info.functions + info.classes)
             symbol_overlap = len(task_words & symbols)

@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from .base import BaseAgent, Message
+from .base import BaseAgent
 from .critic import CritiqueResult
 
 
@@ -69,6 +69,30 @@ class NegotiatorAgent(BaseAgent):
         super().__init__(model=model)
         self.system_prompt = NEGOTIATOR_SYSTEM_PROMPT
 
+    def run(self, task: str, context: str = "") -> dict:
+        """Run negotiation. Context should contain proposals in JSON format."""
+        # Parse proposals from context if provided
+        proposals = []
+        if context:
+            try:
+                import json
+                data = json.loads(context)
+                for i, p in enumerate(data.get("proposals", [])):
+                    proposals.append(Proposal(id=i, solution=p.get("solution", ""), model_used=p.get("model", "unknown")))
+            except json.JSONDecodeError:
+                proposals = [Proposal(id=0, solution=context, model_used="unknown")]
+
+        if not proposals:
+            return {"selected_index": -1, "rationale": "No proposals provided", "confidence": 0.0}
+
+        result = self.build_consensus(task, proposals)
+        return {
+            "selected_index": result.selected_index,
+            "rationale": result.rationale,
+            "confidence": result.confidence,
+            "synthesis_used": result.synthesis_used,
+        }
+
     def build_consensus(
         self,
         task: str,
@@ -107,11 +131,10 @@ class NegotiatorAgent(BaseAgent):
         user_content += "\n\nAnalyze these proposals and provide your consensus decision in the specified JSON format."
 
         messages = [
-            Message(role="system", content=self.system_prompt),
-            Message(role="user", content=user_content),
+            {"role": "user", "content": user_content},
         ]
 
-        response = self._call_llm(messages)
+        response = self.chat(messages)
 
         return self._parse_consensus(
             response.content,

@@ -131,7 +131,7 @@ class MetaLearner:
 
     def _init_db(self):
         """Initialize meta-learner database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -179,7 +179,7 @@ class MetaLearner:
 
     def _load_config(self):
         """Load the most recent config from database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -198,7 +198,7 @@ class MetaLearner:
 
     def _save_config(self, reason: str = ""):
         """Save current config to database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -255,7 +255,7 @@ class MetaLearner:
 
     def _store_efficiency_snapshot(self, efficiency: LearningEfficiency):
         """Store efficiency snapshot for trend analysis."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -421,7 +421,7 @@ class MetaLearner:
 
     def _store_experiment(self, experiment: Experiment):
         """Store experiment results."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -479,7 +479,7 @@ class MetaLearner:
 
     def get_efficiency_trend(self, days: int = 7) -> list[dict]:
         """Get efficiency trend over time."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
@@ -506,7 +506,7 @@ class MetaLearner:
 
     def get_stats(self) -> dict:
         """Get meta-learner statistics."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM experiments")

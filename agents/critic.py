@@ -12,7 +12,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from .base import BaseAgent, Message
+from .base import BaseAgent
 
 
 @dataclass
@@ -84,6 +84,15 @@ class CriticAgent(BaseAgent):
         super().__init__(model=model)
         self.system_prompt = CRITIC_SYSTEM_PROMPT
 
+    def run(self, task: str, context: str = "") -> dict:
+        """Run critique task. Context should contain the proposed solution."""
+        result = self.critique(task, proposed_solution=context)
+        return {
+            "score": result.score,
+            "summary": result.summary,
+            "issues": [{"description": i.description, "severity": i.severity} for i in result.issues],
+        }
+
     def critique(
         self,
         task: str,
@@ -113,11 +122,10 @@ class CriticAgent(BaseAgent):
         user_content += "\n\nProvide your critique in the specified JSON format."
 
         messages = [
-            Message(role="system", content=self.system_prompt),
-            Message(role="user", content=user_content),
+            {"role": "user", "content": user_content},
         ]
 
-        response = self._call_llm(messages)
+        response = self.chat(messages)
 
         return self._parse_critique(response.content, response.input_tokens, response.output_tokens)
 

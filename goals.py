@@ -252,7 +252,7 @@ class HierarchicalPlanner:
 
     def _init_db(self):
         """Initialize goal tracking database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -583,7 +583,7 @@ class HierarchicalPlanner:
         completed, total = tree.root.get_progress()
         status = "completed" if tree.is_complete() else "in_progress"
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -610,7 +610,7 @@ class HierarchicalPlanner:
 
     def load_tree(self, tree_id: str) -> GoalTree | None:
         """Load goal tree from database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute(
@@ -636,7 +636,7 @@ class HierarchicalPlanner:
 
     def get_stats(self) -> dict:
         """Get hierarchical planning statistics."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM goal_trees")

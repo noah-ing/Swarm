@@ -27,3 +27,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
+# Fonts (licensed, not redistributable)
+dashboard/static/fonts/
+.swarm/

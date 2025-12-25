@@ -88,7 +88,7 @@ class PromptEvolution:
 
     def _init_db(self):
         """Initialize evolution database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -131,7 +131,7 @@ class PromptEvolution:
         """Register a base prompt for an agent type."""
         variant_id = hashlib.md5(f"{agent_type}_base".encode()).hexdigest()[:16]
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -163,7 +163,7 @@ class PromptEvolution:
         Returns:
             (variant_id, prompt_text)
         """
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -215,7 +215,7 @@ class PromptEvolution:
         if not variant_id:
             return
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         # Get current stats
@@ -271,7 +271,7 @@ class PromptEvolution:
 
     def _maybe_evolve(self, variant_id: str):
         """Check if conditions are right for evolution."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -330,7 +330,7 @@ class PromptEvolution:
             f"{agent_type}_{mutation_type}_{datetime.now().isoformat()}".encode()
         ).hexdigest()[:16]
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -423,7 +423,7 @@ class PromptEvolution:
 
     def _mutate_best(self, agent_type: str):
         """Create a mutation from the best performing variant."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -442,7 +442,7 @@ class PromptEvolution:
 
     def _retire_variant(self, variant_id: str):
         """Retire a poorly performing variant."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -457,7 +457,7 @@ class PromptEvolution:
 
     def _log_event(self, agent_type: str, event_type: str, variant_id: str, details: str):
         """Log an evolution event."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -470,7 +470,7 @@ class PromptEvolution:
 
     def get_stats(self) -> dict[str, Any]:
         """Get evolution statistics."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         stats = {"agents": {}}
@@ -500,7 +500,7 @@ class PromptEvolution:
 
     def get_best_prompt(self, agent_type: str) -> str | None:
         """Get the best performing prompt for an agent type."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""

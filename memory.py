@@ -44,7 +44,7 @@ class MemoryStore:
 
     def _init_db(self):
         """Initialize the database schema."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -124,7 +124,7 @@ class MemoryStore:
 
     def store(self, memory: Memory) -> str:
         """Store a memory entry."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         memory_id = memory.id or self._hash_task(memory.task)
@@ -162,7 +162,7 @@ class MemoryStore:
         min_similarity: float = 0.3,
     ) -> list[Memory]:
         """Search for relevant memories using semantic similarity."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         query_embedding = self._get_embedding(query)
@@ -237,7 +237,7 @@ class MemoryStore:
         duration_ms: int,
     ):
         """Track model performance for adaptive routing."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -259,7 +259,7 @@ class MemoryStore:
 
     def get_model_stats(self, model: str | None = None) -> dict[str, Any]:
         """Get performance statistics for models."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         where_clause = f"WHERE model = '{model}'" if model else ""
@@ -293,7 +293,7 @@ class MemoryStore:
 
     def get_best_model_for_task(self, task_type: str) -> str | None:
         """Get the best performing model for a task type."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -323,7 +323,7 @@ class MemoryStore:
         tags: list[str] | None = None,
     ) -> str:
         """Store a reusable skill pattern."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         skill_id = self._hash_task(pattern)
@@ -350,7 +350,7 @@ class MemoryStore:
 
     def find_skill(self, task: str) -> dict | None:
         """Find a matching skill for a task."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -387,7 +387,7 @@ class MemoryStore:
 
     def update_skill_stats(self, skill_id: str, success: bool):
         """Update skill success/fail counts."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         field = "success_count" if success else "fail_count"
@@ -409,7 +409,7 @@ class MemoryStore:
         Returns:
             Number of memories re-embedded
         """
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT id, task, solution FROM memories")
@@ -432,7 +432,7 @@ class MemoryStore:
 
     def get_stats(self) -> dict[str, Any]:
         """Get overall memory statistics."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM memories")

@@ -96,6 +96,11 @@ static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+# Serve fonts
+fonts_dir = static_dir / "fonts"
+if fonts_dir.exists():
+    app.mount("/fonts", StaticFiles(directory=str(fonts_dir)), name="fonts")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -169,7 +174,7 @@ async def get_agents():
 
         agents = []
         import sqlite3
-        conn = sqlite3.connect(factory.db_path)
+        conn = sqlite3.connect(factory.db_path, check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, name, role, generation, status, tasks_completed,
@@ -254,7 +259,7 @@ async def get_reflections(limit: int = 20):
         brain = get_brain()
 
         import sqlite3
-        conn = sqlite3.connect(brain.db_path)
+        conn = sqlite3.connect(brain.db_path, check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT task, outcome, success, insights, model_used,

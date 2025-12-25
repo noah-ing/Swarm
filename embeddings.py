@@ -71,7 +71,7 @@ class EmbeddingService:
 
     def _init_cache(self):
         """Initialize the embedding cache database."""
-        conn = sqlite3.connect(self.cache_path)
+        conn = sqlite3.connect(self.cache_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -97,7 +97,7 @@ class EmbeddingService:
 
     def _get_cached(self, text_hash: str) -> Optional[list[float]]:
         """Retrieve embedding from cache if available."""
-        conn = sqlite3.connect(self.cache_path)
+        conn = sqlite3.connect(self.cache_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -114,7 +114,7 @@ class EmbeddingService:
 
     def _cache_embedding(self, text_hash: str, embedding: list[float]):
         """Cache an embedding for future use."""
-        conn = sqlite3.connect(self.cache_path)
+        conn = sqlite3.connect(self.cache_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -322,7 +322,7 @@ class EmbeddingService:
 
     def get_cache_stats(self) -> dict:
         """Get statistics about the embedding cache."""
-        conn = sqlite3.connect(self.cache_path)
+        conn = sqlite3.connect(self.cache_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM embedding_cache")

@@ -84,7 +84,7 @@ class KnowledgeStore:
 
     def _init_db(self):
         """Initialize the knowledge database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         # Projects table
@@ -188,7 +188,7 @@ class KnowledgeStore:
         if name is None:
             name = Path(resolved_path).name
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         now = datetime.now().isoformat()
@@ -270,7 +270,7 @@ class KnowledgeStore:
         # Determine if this memory is transferable
         is_transferable = self._assess_transferability(task, solution, files_modified or [])
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -355,7 +355,7 @@ class KnowledgeStore:
 
     def _maybe_create_insight(self, task: str, solution: str, project_id: str):
         """Check if this memory creates or reinforces a universal insight."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         # Get embedding for matching
@@ -483,7 +483,7 @@ class KnowledgeStore:
         service = get_embedding_service()
         query_embedding = service.embed(query).embedding
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         # Get all successful, transferable memories
@@ -554,7 +554,7 @@ class KnowledgeStore:
         service = get_embedding_service()
         query_embedding = service.embed(query).embedding
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -594,7 +594,7 @@ class KnowledgeStore:
         success: bool = True,
     ):
         """Record a knowledge transfer event."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -633,7 +633,7 @@ class KnowledgeStore:
 
     def get_stats(self) -> dict[str, Any]:
         """Get knowledge transfer statistics."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM projects")
@@ -668,7 +668,7 @@ class KnowledgeStore:
 
     def list_projects(self) -> list[ProjectInfo]:
         """List all known projects."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""

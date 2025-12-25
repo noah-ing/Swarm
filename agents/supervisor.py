@@ -493,19 +493,20 @@ class Supervisor(BaseAgent):
         # Emit negotiation results
         if _event_bus and negotiation_result:
             # Emit proposals
-            for i, proposal in enumerate(negotiation_result.proposals[:3]):
+            for i, proposal in enumerate(negotiation_result.all_proposals[:3]):
                 self._emit_event(
                     EventType.PROPOSAL,
-                    proposal[:200] if proposal else f"Proposal {i+1}",
+                    proposal.solution[:200] if proposal.solution else f"Proposal {i+1}",
                     agent_name=f"proposer_{i+1}",
                 )
 
             # Emit consensus
+            confidence = negotiation_result.consensus.confidence if negotiation_result.consensus else 0.0
             self._emit_event(
                 EventType.CONSENSUS,
                 f"Consensus reached: {negotiation_result.final_solution[:200]}",
                 agent_name="negotiator",
-                data={"confidence": negotiation_result.confidence},
+                data={"confidence": confidence},
             )
 
         # Use the negotiated solution as the result

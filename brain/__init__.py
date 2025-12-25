@@ -1,26 +1,23 @@
 """
-Brain Module - Backward Compatibility Wrapper
-=============================================
+Cognitive Architecture Package
+==============================
 
-This module maintains backward compatibility while delegating to the
-refactored cognitive architecture in the brain package.
+This package contains the refactored cognitive architecture with
+separate components for better modularity and maintainability.
 
-All existing imports and usage patterns continue to work unchanged.
+Components:
+- CognitiveDatabase: Centralized database management
+- UncertaintyAssessor: Task complexity and risk analysis
+- StrategySelector: Strategy selection and management
+- ReflectionEngine: Post-task reflection and learning
+- SkillExtractor: Pattern recognition and skill creation
+- KnowledgeRetriever: Historical insights and recommendations
+- CognitiveArchitecture: Main orchestrator maintaining backward compatibility
+
+The refactored architecture maintains 100% backward compatibility with
+the existing brain.py API while providing better separation of concerns.
 """
 
-# Import everything from the refactored architecture
-from brain.architecture import CognitiveArchitecture, get_brain
-from brain import (
-    Uncertainty,
-    Strategy,
-    Reflection,
-    CognitiveDatabase,
-    UncertaintyAssessor,
-    StrategySelector,
-    ReflectionEngine,
-    SkillExtractor,
-    KnowledgeRetriever
-)
 from typing import Dict, Union, Any, List, Optional
 
 def format_stats(stats: Dict[str, Union[int, float, str, Any]], separator: str = ': ',
@@ -105,7 +102,18 @@ def calculate_risk_score(metrics: List[float], weights: Optional[List[float]] = 
 
     return normalized_score
 
-# Export the same interface as the original brain.py
+# Import all components
+from brain.database import CognitiveDatabase, Reflection
+from brain.uncertainty import UncertaintyAssessor, Uncertainty
+from brain.strategy import StrategySelector, Strategy
+from brain.reflection import ReflectionEngine
+from brain.skill_extractor import SkillExtractor
+from brain.knowledge import KnowledgeRetriever
+
+# Import main architecture and singleton
+from brain.architecture import CognitiveArchitecture, get_brain
+
+# Export key items for easy access
 __all__ = [
     'CognitiveArchitecture',
     'get_brain',
@@ -122,3 +130,6 @@ __all__ = [
     'get_stats_summary',
     'calculate_risk_score'
 ]
+
+# Version info
+__version__ = '2.0.0'

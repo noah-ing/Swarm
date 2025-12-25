@@ -66,7 +66,7 @@ class NegotiationCoordinator:
 
     def _init_db(self):
         """Initialize negotiation tracking database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -222,7 +222,7 @@ class NegotiationCoordinator:
         total_tokens: int,
     ):
         """Store negotiation record for analytics."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -247,7 +247,7 @@ class NegotiationCoordinator:
 
     def get_stats(self) -> dict:
         """Get negotiation statistics."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM negotiations")

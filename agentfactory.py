@@ -287,7 +287,7 @@ class AgentFactory:
 
     def _init_db(self):
         """Initialize agent factory database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -333,7 +333,7 @@ class AgentFactory:
 
     def analyze_needs(self) -> list[AgentNeed]:
         """Analyze task patterns to identify needs for new agents."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         # Find patterns with low success or high frequency without dedicated agent
@@ -489,7 +489,7 @@ Guidelines:
 
     def _store_blueprint(self, blueprint: AgentBlueprint, code: str):
         """Store blueprint in database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -523,7 +523,7 @@ Guidelines:
 
     def get_blueprint(self, agent_id: str) -> AgentBlueprint | None:
         """Get a blueprint by ID."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT * FROM blueprints WHERE id = ?", (agent_id,))
@@ -561,7 +561,7 @@ Guidelines:
         if agent_id in self._agent_cache:
             return self._agent_cache[agent_id]
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT code FROM blueprints WHERE id = ? AND status = 'active'", (agent_id,))
@@ -598,7 +598,7 @@ Guidelines:
 
     def activate_agent(self, agent_id: str) -> bool:
         """Activate a testing agent for production use."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute(
@@ -618,7 +618,7 @@ Guidelines:
         if not blueprint:
             return False
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute(
@@ -679,7 +679,7 @@ Guidelines:
 
     def record_task(self, agent_id: str, success: bool, tokens: int, duration: float):
         """Record task completion for an agent."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         if success:
@@ -718,7 +718,7 @@ Guidelines:
 
     def get_active_agents(self) -> list[AgentBlueprint]:
         """Get all active agent blueprints."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT * FROM blueprints WHERE status = 'active'")
@@ -729,7 +729,7 @@ Guidelines:
 
     def get_stats(self) -> dict:
         """Get agent factory statistics."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM blueprints WHERE status = 'active'")
