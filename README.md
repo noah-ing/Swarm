@@ -3,13 +3,13 @@
 A self-improving multi-agent CLI framework with cognitive architecture, prompt evolution, and autonomous learning.
 
 ```
- ____
- / ___|_ ____ _ _ __ _ __ ___
- \___ \ \ /\ / / _` | '__| '_ ` _ \
- ___) \ V V / (_| | | | | | | | |
- |____/ \_/\_/ \__,_|_| |_| |_| |_|
+   ____
+  / ___|_      ____ _ _ __ _ __ ___
+  \___ \ \ /\ / / _` | '__| '_ ` _ \
+   ___) \ V  V / (_| | |  | | | | | |
+  |____/ \_/\_/ \__,_|_|  |_| |_| |_|
 
- "The swarm that learns"
+  "The swarm that learns"
 ```
 
 ## What Makes Swarm Different
@@ -26,23 +26,23 @@ Most AI agent frameworks execute tasks. Swarm **learns from every execution**:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ SUPERVISOR │
-│ "CEO" - thinks before acting, learns after │
+│                      SUPERVISOR                              │
+│        "CEO" - thinks before acting, learns after            │
 ├──────────────────────────────────────────────────────────────┤
-│ ┌─────────┐ ┌───────────┐ ┌──────────┐ ┌─────────────┐ │
-│ │ THINKER │ │ BRAIN │ │EVOLUTION │ │ CODEBASE │ │
-│ │ meta- │ │ reflect & │ │ mutate │ │ understand │ │
-│ │cognition│ │ learn │ │ prompts │ │ context │ │
-│ └─────────┘ └───────────┘ └──────────┘ └─────────────┘ │
+│  ┌─────────┐  ┌───────────┐  ┌──────────┐  ┌─────────────┐   │
+│  │ THINKER │  │   BRAIN   │  │EVOLUTION │  │  CODEBASE   │   │
+│  │ meta-   │  │ reflect & │  │ mutate   │  │  understand │   │
+│  │cognition│  │ learn     │  │ prompts  │  │  context    │   │
+│  └─────────┘  └───────────┘  └──────────┘  └─────────────┘   │
 ├──────────────────────────────────────────────────────────────┤
-│ ORCHESTRATOR │
-│ smart decomposition + parallel │
+│                     ORCHESTRATOR                             │
+│              smart decomposition + parallel                  │
 ├──────────────────────────────────────────────────────────────┤
-│ GRUNTS ─────────► QA │
-│ execute tasks verify │
+│              GRUNTS ─────────► QA                            │
+│            execute tasks      verify                         │
 ├──────────────────────────────────────────────────────────────┤
-│ MODEL ROUTER │
-│ haiku -> sonnet -> opus (auto-escalation) │
+│                     MODEL ROUTER                             │
+│         haiku → sonnet → opus (auto-escalation)              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -221,18 +221,18 @@ python3 train.py stats
  SWARM LEARNING STATS
 ============================================================
  Brain:
- Reflections: 60 (58 successful)
- Skills learned: 0
- Failure patterns tracked: 0
- Avg confidence: 69.7%
+   Reflections: 60 (58 successful)
+   Skills learned: 0
+   Failure patterns tracked: 0
+   Avg confidence: 69.7%
 
  Evolution:
- Total mutations: 3
- grunt: 4 active variants, 73.9% success
+   Total mutations: 3
+   grunt: 4 active variants, 73.9% success
 
  Memory:
- Solutions stored: 11
- Successful solutions: 11
+   Solutions stored: 11
+   Successful solutions: 11
 ============================================================
 ```
 
@@ -242,18 +242,18 @@ All learning is stored in SQLite databases:
 
 ```
 ~/.swarm/
-├── brain.db # Reflections, insights, skills
-├── evolution.db # Prompt variants, mutations, fitness
-├── memory.db # Past solutions, model performance
-├── codebase.db # Project understanding cache
-├── knowledge.db # Cross-project knowledge transfer
+├── brain.db           # Reflections, insights, skills
+├── evolution.db       # Prompt variants, mutations, fitness
+├── memory.db          # Past solutions, model performance
+├── codebase.db        # Project understanding cache
+├── knowledge.db       # Cross-project knowledge transfer
 ├── embeddings_cache.db # Cached embeddings (saves API calls)
-├── rollback.db # File snapshots for rollback
-├── negotiation.db # Multi-agent debate history
-├── goals.db # Hierarchical goal trees
-├── background.db # Background learning sessions
-├── metalearner.db # Meta-learning experiments & config
-└── agentfactory.db # Dynamic agent blueprints & evolution
+├── rollback.db        # File snapshots for rollback
+├── negotiation.db     # Multi-agent debate history
+├── goals.db           # Hierarchical goal trees
+├── background.db      # Background learning sessions
+├── metalearner.db     # Meta-learning experiments & config
+└── agentfactory.db    # Dynamic agent blueprints & evolution
 ```
 
 Learning persists across sessions and accumulates over time.
